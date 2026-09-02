@@ -45,9 +45,9 @@ No provider SDK is used. The server hits OpenRouter directly with `fetch`. This 
 
 Use `mockup.png` as the source of truth for the three-column layout, spacing, and visual hierarchy. The UI supports:
 
-1. A prompt input for the initial reference sprite.
-2. A "Generate Reference Sprite" button.
-3. A preview area for the generated sprite (with dimensions caption).
+1. A Generate / Upload selector for acquiring the initial reference sprite.
+2. Generate mode has a prompt, model selector, and "Generate Reference Sprite" button. Upload mode accepts PNG, JPEG, or WebP through an accessible drop zone.
+3. A preview area for the current reference sprite (with filename, dimensions, and background-suitability warning when applicable).
 4. A motion / sequence description input (e.g. "walking left", "jump", "attack right").
 5. A **video model selector** (dropdown) above the Generate Frames button. Options come from `GET /api/models/video`. Default: `x-ai/grok-imagine-video`.
 6. A "Generate Frames" button that runs the chosen model via OpenRouter, downloads the clip, and extracts transparent PNG frames.
@@ -121,6 +121,9 @@ Use TypeScript everywhere. Strict mode on.
 - `POST /api/projects/selection { selectedIndices: number[] }` → debounced persistence of the user's frame selection.
 - `POST /api/projects/spritesheet { dataUrl }` → writes `projects/latest/spritesheet.png` and best-effort builds `projects/latest/preview.gif` from the current selection. Returns the updated view.
 - `POST /api/sprites/generate { prompt }` → calls OpenRouter chat-completions, writes `latest/ref/sprite.png`, parses PNG dimensions, returns `{ view, dataUrl }`.
+- `POST /api/sprites/upload/prepare` → accepts one multipart `image`, validates and normalizes it to a staged PNG, and returns an opaque upload id plus metadata and whether replacement confirmation is required.
+- `POST /api/sprites/upload/commit { uploadId }` → installs the prepared Reference Sprite, records upload provenance, and clears downstream artifacts.
+- `POST /api/sprites/upload/discard` → removes the current prepared upload without changing project state.
 - `POST /api/sprites/animate { image, text, model?, duration? }` → resolves `image` (either a `data:` URL or a `/projects/...` path with query strings stripped), validates `model` against the allowlist, calls OpenRouter `/api/v1/videos` with the chosen model's `defaultDuration` if not overridden, polls until `completed`, downloads the clip, runs frame extraction, returns the updated view.
 
 All error responses are `{ error: string }` with `sk-or-...` and `xai-...` tokens redacted.
@@ -325,6 +328,9 @@ The "working state" always lives in `projects/latest/`. Named snapshots live alo
 {
   "name": "eric-draven",
   "spritePrompt": "...",
+  "spriteAcquisition": "generated",
+  "spriteOriginalFilename": null,
+  "backgroundSuitability": "suitable",
   "motionPrompt": "...",
   "motionModel": "x-ai/grok-imagine-video",
   "sprite": "ref/sprite.png",
@@ -349,7 +355,7 @@ Load: wipe `latest/`, copy `projects/<name>/` to `latest/`. Do **not** modify th
 
 Wipe rules:
 
-- New sprite generation wipes `latest/frames/`, `latest/spritesheet.png`, `latest/preview.gif` and clears the corresponding manifest fields.
+- A successful Reference Sprite acquisition (generation or upload commit) wipes `latest/frames/`, `latest/spritesheet.png`, `latest/preview.gif` and clears the corresponding manifest fields.
 - New motion / frames generation wipes the spritesheet and gif (frames are about to be overwritten by ffmpeg).
 - `POST /api/projects/new` wipes the entire `latest/` directory and returns an empty view.
 
@@ -447,7 +453,7 @@ Server logs and 4xx responses redact `sk-or-...` and `xai-...` substrings before
 
 - Small, focused functions; typed request/response shapes.
 - App state managed by a tiny `Store` with a single `subscribe` listener that re-renders. No heavy framework.
-- Generated output state is explicit: `idle`, `generating-image`, `generating-video`, `extracting-frames`, `done`, `error`.
+- Generated output state is explicit: `idle`, `generating-image`, `uploading-image`, `generating-video`, `extracting-frames`, `done`, `error`.
 - Buttons disable while their work is in flight to prevent duplicate submissions.
 - Keep dependencies minimal — raw `fetch` for the OpenRouter calls, no provider SDKs.
 
@@ -473,6 +479,7 @@ Before considering changes done:
 - UI visually matches `mockup.png` (3-column card layout, header with New / Load / Save, model dropdown in column 2).
 - `GET /api/models/video` returns the allowlist; client dropdown is populated from it.
 - Initial sprite generation lands the file at `projects/latest/ref/sprite.png` and shows the dimensions caption.
+- Uploading PNG, JPEG, and WebP images normalizes them to `projects/latest/ref/sprite.png`, persists provenance/filename/suitability, and works without an OpenRouter API key.
 - Motion generation with Grok (default 2s) and Seedance (default 4s) both succeed end-to-end; manifest `motionModel` reflects the chosen model.
 - Video download succeeds when `unsigned_urls` points back to `openrouter.ai` (bearer attached).
 - Frame grid scrolls and supports click-to-toggle selection.

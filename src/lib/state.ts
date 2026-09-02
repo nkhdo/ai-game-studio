@@ -11,6 +11,7 @@ export const DEFAULT_VIDEO_MODEL = "x-ai/grok-imagine-video";
 export type AppStatus =
   | "idle"
   | "generating-image"
+  | "uploading-image"
   | "generating-video"
   | "extracting-frames"
   | "done"
@@ -21,6 +22,11 @@ export interface AppState {
   errorMessage: string | null;
   spritePrompt: string;
   spriteModel: string;
+  spriteAcquisitionMode: "generate" | "upload";
+  spriteAcquisition: "generated" | "uploaded" | null;
+  spriteOriginalFilename: string | null;
+  backgroundSuitability: "suitable" | "warning" | "unknown";
+  hasApiKey: boolean;
   imageModels: ImageModelOption[];
   motionPrompt: string;
   motionModel: string;
@@ -43,6 +49,11 @@ export function createInitialState(): AppState {
     errorMessage: null,
     spritePrompt: "",
     spriteModel: DEFAULT_IMAGE_MODEL,
+    spriteAcquisitionMode: "generate",
+    spriteAcquisition: null,
+    spriteOriginalFilename: null,
+    backgroundSuitability: "unknown",
+    hasApiKey: false,
     imageModels: [],
     motionPrompt: "",
     motionModel: DEFAULT_VIDEO_MODEL,
@@ -71,6 +82,10 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
   return {
     spritePrompt: view.spritePrompt,
     spriteModel: view.spriteModel || DEFAULT_IMAGE_MODEL,
+    spriteAcquisitionMode: view.spriteAcquisition === "uploaded" ? "upload" : "generate",
+    spriteAcquisition: view.spriteAcquisition,
+    spriteOriginalFilename: view.spriteOriginalFilename,
+    backgroundSuitability: view.backgroundSuitability,
     motionPrompt: view.motionPrompt,
     motionModel: view.motionModel || DEFAULT_VIDEO_MODEL,
     spriteSrc: cacheBust(view.spriteUrl, v),

@@ -1,6 +1,6 @@
 # AI Game Studio
 
-A local web app — and the start of a fuller AI Game Studio — for generating game assets from text prompts. Today: 2D reference sprites and animation frames composed into a 1×N spritesheet with a looping animated preview. Backgrounds are chroma-keyed to transparency automatically, so frames drop straight into a game engine. Projects can be saved and loaded by name.
+A local web app — and the start of a fuller AI Game Studio — for creating game assets from generated or uploaded source images. Today: 2D reference sprites and animation frames composed into a 1×N spritesheet with a looping animated preview. Backgrounds are chroma-keyed to transparency automatically, so frames drop straight into a game engine. Projects can be saved and loaded by name.
 
 The app talks to [OpenRouter](https://openrouter.ai) as the single boundary to the model providers. One key gives access to 300+ image / video / audio / text models, which is the runway for everything on the TO-DO list (backgrounds, tilemaps, SFX, music, voice, …).
 
@@ -14,7 +14,7 @@ Full Demo: https://www.youtube.com/watch?v=MijheSPXnDo
 
 - Node 20+
 - `ffmpeg` on `PATH`
-- An [OpenRouter API key](https://openrouter.ai/keys)
+- An [OpenRouter API key](https://openrouter.ai/keys) for image or motion generation (local Reference Sprite upload works without one)
 
 ## Install
 
@@ -38,7 +38,7 @@ This starts Vite (frontend, :5173) and an Express server (backend, :8787) togeth
 
 ## Using it
 
-1. Pick an image model and type a sprite prompt in column 1 → **Generate Reference Sprite**.
+1. In column 1, either generate a Reference Sprite from a prompt or upload an existing PNG, JPEG, or WebP image (10 MB maximum).
 2. Pick a video model and type a motion prompt in column 2 → **Generate Frames** (calls image-to-video via OpenRouter, polls until done, extracts transparent PNGs).
 3. Click frame tiles to toggle which ones to include.
 4. **Generate Spritesheet** → composes a 1×N PNG client-side, builds a looping GIF preview server-side.
@@ -64,6 +64,7 @@ Generated artifacts live under `projects/` (gitignored). The current working sta
 - `Jump arc — crouch, leap, mid-air, land`
 
 Tips:
+- Uploaded images are normalized to PNG. Transparent pixels are composited onto chroma green, and the app warns when the outer background may not key cleanly.
 - Keep motion prompts focused on the action. Phrases like *"no camera movement"*, *"side-view"*, and *"no head tilting"* help keep frames game-ready.
 - Switching the image model is one entry in `server/image.ts` — see `IMAGE_MODELS`.
 - Per-model default durations: Grok Imagine Video = 2 s, MiniMax H3 = 5 s, Seedance 2.0 = 4 s. ~24–30 fps on the source clip, so trim with the frame selector before composing.

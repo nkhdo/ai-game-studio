@@ -2,6 +2,9 @@ export interface ProjectView {
   name: string;
   spritePrompt: string;
   spriteModel: string;
+  spriteAcquisition: "generated" | "uploaded" | null;
+  spriteOriginalFilename: string | null;
+  backgroundSuitability: "suitable" | "warning" | "unknown";
   motionPrompt: string;
   motionModel: string;
   spriteUrl: string | null;
@@ -44,6 +47,15 @@ export interface GenerateSpriteResponse {
   dataUrl: string;
 }
 
+export interface PreparedSpriteUpload {
+  uploadId: string;
+  originalFilename: string;
+  dimensions: { w: number; h: number };
+  backgroundSuitability: "suitable" | "warning" | "unknown";
+  preparedAt: string;
+  requiresConfirmation: boolean;
+}
+
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
@@ -75,6 +87,25 @@ export function generateSprite(
   model?: string,
 ): Promise<GenerateSpriteResponse> {
   return postJson("/api/sprites/generate", { prompt, model });
+}
+
+export async function prepareSpriteUpload(file: File): Promise<PreparedSpriteUpload> {
+  const body = new FormData();
+  body.append("image", file);
+  const res = await fetch("/api/sprites/upload/prepare", { method: "POST", body });
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    throw new Error(typeof json.error === "string" ? json.error : `Upload failed (${res.status})`);
+  }
+  return json as unknown as PreparedSpriteUpload;
+}
+
+export function commitSpriteUpload(uploadId: string): Promise<ProjectView> {
+  return postJson("/api/sprites/upload/commit", { uploadId });
+}
+
+export function discardSpriteUpload(): Promise<{ ok: boolean }> {
+  return postJson("/api/sprites/upload/discard", {});
 }
 
 export function animateSprite(
