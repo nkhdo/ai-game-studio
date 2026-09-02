@@ -5,8 +5,12 @@ import { spawn } from "node:child_process";
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
 export const IMAGE_MODELS = [
-  { id: "openai/gpt-image-2", label: "OpenAI GPT Image 2" },
-  { id: "x-ai/grok-imagine-image-2.0", label: "xAI Grok Imagine Image 2.0" },
+  { id: "openai/gpt-image-2", label: "OpenAI GPT Image 2", maxStyleGuideImages: 16 },
+  {
+    id: "x-ai/grok-imagine-image-2.0",
+    label: "xAI Grok Imagine Image 2.0",
+    maxStyleGuideImages: 3,
+  },
 ] as const;
 
 export type ImageModelId = (typeof IMAGE_MODELS)[number]["id"];
@@ -24,12 +28,22 @@ const CHROMA_DIRECTIVE =
   "The subject itself must contain no green elements that could conflict " +
   "with chroma keying. Centered, full subject visible.";
 
+const STYLE_GUIDE_DIRECTIVE =
+  "Use all attached Style Guide Images collectively and without priority. " +
+  "Borrow only their palette, linework, shading, texture, and proportions. " +
+  "Do not copy their subjects, identities, clothing, text, poses, or composition.";
+
 interface ImageGenerationResponse {
   data?: Array<{
     b64_json?: string;
     media_type?: string;
   }>;
   error?: { message?: string; code?: string | number } | string;
+}
+
+export interface SpriteImageGenerationOptions {
+  geometry?: { size: { w: number; h: number }; subjectFillPct: number };
+  styleGuideDataUrls?: readonly string[];
 }
 
 function isPng(buffer: Buffer): boolean {
@@ -114,15 +128,24 @@ export async function normalizeImageToPng(
 export async function generateSpriteImage(
   prompt: string,
   model: ImageModelId = DEFAULT_IMAGE_MODEL,
-  geometry?: { size: { w: number; h: number }; subjectFillPct: number },
+  options: SpriteImageGenerationOptions = {},
 ): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
 
-  const fillDirective = geometry
-    ? ` The subject occupies about ${geometry.subjectFillPct}% of the total image height, vertically centered, with empty margins above and below.`
+  const styleGuideDataUrls = options.styleGuideDataUrls ?? [];
+  const modelConfig = IMAGE_MODELS.find((candidate) => candidate.id === model)!;
+  if (styleGuideDataUrls.length > modelConfig.maxStyleGuideImages) {
+    throw new Error(
+      `${modelConfig.label} supports up to ${modelConfig.maxStyleGuideImages} Style Guide Images`,
+    );
+  }
+  const fillDirective = options.geometry
+    ? ` The subject occupies about ${options.geometry.subjectFillPct}% of the total image height, vertically centered, with empty margins above and below.`
     : "";
-  const fullPrompt = `${prompt.trim()}\n\n${CHROMA_DIRECTIVE}${fillDirective}`;
+  const styleDirective =
+    styleGuideDataUrls.length > 0 ? `\n\n${STYLE_GUIDE_DIRECTIVE}` : "";
+  const fullPrompt = `${prompt.trim()}${styleDirective}\n\n${CHROMA_DIRECTIVE}${fillDirective}`;
 
   const res = await fetch(`${OPENROUTER_BASE}/images`, {
     method: "POST",
@@ -133,7 +156,17 @@ export async function generateSpriteImage(
     body: JSON.stringify({
       model,
       prompt: fullPrompt,
-      ...(geometry ? { size: `${geometry.size.w}x${geometry.size.h}` } : {}),
+      ...(options.geometry
+        ? { size: `${options.geometry.size.w}x${options.geometry.size.h}` }
+        : {}),
+      ...(styleGuideDataUrls.length > 0
+        ? {
+            input_references: styleGuideDataUrls.map((url) => ({
+              type: "image_url",
+              image_url: { url },
+            })),
+          }
+        : {}),
     }),
   });
 

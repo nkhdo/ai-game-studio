@@ -11,6 +11,7 @@ export const PROJECT_FILES = {
   manifest: "sprite.json",
   ref: "ref/sprite.png",
   source: "source.mp4",
+  styleGuidesDir: "style-guides",
   framesDir: "frames",
   spritesheet: "spritesheet.png",
   previewGif: "preview.gif",

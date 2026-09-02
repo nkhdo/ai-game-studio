@@ -4,7 +4,13 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 import { ensureInsideRoot, LATEST_DIR, PROJECT_FILES } from "./files.js";
-import { readManifest, toView, updateLatest, wipeLatestFramesAndSheet } from "./projects.js";
+import {
+  pruneUnreferencedStyleGuides,
+  readManifest,
+  toView,
+  updateLatest,
+  wipeLatestFramesAndSheet,
+} from "./projects.js";
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MAX_DIMENSION = 4096;
@@ -89,19 +95,19 @@ export interface NormalizedReferenceImage {
   backgroundSuitability: BackgroundSuitability;
 }
 
-function sanitizeDisplayFilename(value: string): string {
+export function sanitizeDisplayFilename(value: string): string {
   const basename = path.basename(value.replace(/\\/g, "/"));
   const cleaned = basename.replace(/[\u0000-\u001f\u007f]/g, "").trim();
   return (cleaned || "uploaded-image").slice(0, 120);
 }
 
-function assertAllowedFormat(format: string | undefined): void {
+export function assertAllowedFormat(format: string | undefined): void {
   if (!format || !["png", "jpeg", "webp"].includes(format)) {
     throw new Error("unsupported image format (use PNG, JPEG, or WebP)");
   }
 }
 
-function assertDimensions(width: number | undefined, height: number | undefined): asserts width is number {
+export function assertDimensions(width: number | undefined, height: number | undefined): asserts width is number {
   if (!width || !height) throw new Error("could not read image dimensions");
   if (width > MAX_DIMENSION || height > MAX_DIMENSION || width * height > MAX_PIXELS) {
     throw new Error("image is too large (maximum 4096 px per side and 16 megapixels)");
@@ -299,9 +305,10 @@ export async function commitReferenceUpload(uploadId: string) {
   await wipeLatestFramesAndSheet();
   await discardPreparedUpload();
 
-  const manifest = await updateLatest({
+  let manifest = await updateLatest({
     spritePrompt: "",
     spriteAcquisition: "uploaded",
+    appliedStyleGuideSet: [],
     spriteOriginalFilename: prepared.originalFilename,
     backgroundSuitability: prepared.backgroundSuitability,
     sprite: PROJECT_FILES.ref,
@@ -315,6 +322,7 @@ export async function commitReferenceUpload(uploadId: string) {
     spritesheet: null,
     previewGif: null,
   });
+  manifest = await pruneUnreferencedStyleGuides(manifest);
   return toView(manifest);
 }
 

@@ -2,6 +2,8 @@ export interface ProjectView {
   name: string;
   spritePrompt: string;
   spriteModel: string;
+  styleGuides: StyleGuideImageView[];
+  styleGuidesChanged: boolean;
   spriteAcquisition: "generated" | "uploaded" | null;
   spriteOriginalFilename: string | null;
   backgroundSuitability: "suitable" | "warning" | "unknown";
@@ -20,6 +22,12 @@ export interface ProjectView {
   updatedAt: string;
 }
 
+export interface StyleGuideImageView {
+  id: string;
+  originalFilename: string;
+  url: string;
+}
+
 export interface VideoModelOption {
   id: string;
   label: string;
@@ -29,6 +37,7 @@ export interface VideoModelOption {
 export interface ImageModelOption {
   id: string;
   label: string;
+  maxStyleGuideImages: number;
 }
 
 export interface AcquisitionGeometry {
@@ -104,6 +113,23 @@ export function generateSprite(
     subjectFillPct: geometry?.subjectFillPct,
     colorCount: geometry?.colorCount ?? null,
   });
+}
+
+export async function uploadStyleGuide(file: File): Promise<ProjectView> {
+  const body = new FormData();
+  body.append("image", file);
+  const res = await fetch("/api/sprites/style-guides", { method: "POST", body });
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    throw new Error(
+      typeof json.error === "string" ? json.error : `Style guide upload failed (${res.status})`,
+    );
+  }
+  return json as unknown as ProjectView;
+}
+
+export function removeStyleGuide(id: string): Promise<ProjectView> {
+  return postJson("/api/sprites/style-guides/remove", { id });
 }
 
 export async function prepareSpriteUpload(

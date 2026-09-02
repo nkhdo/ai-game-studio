@@ -471,6 +471,13 @@ This keeps each asset type self-contained and the surface area predictable.
 
 ## Testing checklist
 
+### Agent verification safety
+
+- Automated tests must mock the OpenRouter boundary. Tests must never make real image, video, audio, or text generation requests or consume provider credits.
+- Do not run smoke tests or end-to-end generation flows against the development app as routine agent verification. Use mocked contract tests plus the TypeScript/Vite build instead.
+- Live provider validation requires the user to request it explicitly and approve the cost in the current conversation.
+- The end-to-end bullets below are human release checks, not permission for an agent to call OpenRouter.
+
 Before considering changes done:
 
 - `npm install` works from a clean checkout.

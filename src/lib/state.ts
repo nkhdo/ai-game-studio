@@ -2,6 +2,7 @@ import type {
   ImageModelOption,
   ProjectSummary,
   ProjectView,
+  StyleGuideImageView,
   VideoModelOption,
 } from "./api";
 
@@ -14,6 +15,7 @@ export const DEFAULT_COLOR_COUNT: number | null = 16;
 export type AppStatus =
   | "idle"
   | "generating-image"
+  | "uploading-style-guide"
   | "uploading-image"
   | "generating-video"
   | "extracting-frames"
@@ -25,6 +27,8 @@ export interface AppState {
   errorMessage: string | null;
   spritePrompt: string;
   spriteModel: string;
+  styleGuides: StyleGuideImageView[];
+  styleGuidesChanged: boolean;
   spriteAcquisitionMode: "generate" | "upload";
   spriteAcquisition: "generated" | "uploaded" | null;
   spriteOriginalFilename: string | null;
@@ -56,6 +60,8 @@ export function createInitialState(): AppState {
     errorMessage: null,
     spritePrompt: "",
     spriteModel: DEFAULT_IMAGE_MODEL,
+    styleGuides: [],
+    styleGuidesChanged: false,
     spriteAcquisitionMode: "generate",
     spriteAcquisition: null,
     spriteOriginalFilename: null,
@@ -93,6 +99,11 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
   return {
     spritePrompt: view.spritePrompt,
     spriteModel: view.spriteModel || DEFAULT_IMAGE_MODEL,
+    styleGuides: view.styleGuides.map((guide) => ({
+      ...guide,
+      url: cacheBust(guide.url, v)!,
+    })),
+    styleGuidesChanged: view.styleGuidesChanged,
     spriteAcquisitionMode: view.spriteAcquisition === "uploaded" ? "upload" : "generate",
     spriteAcquisition: view.spriteAcquisition,
     spriteOriginalFilename: view.spriteOriginalFilename,

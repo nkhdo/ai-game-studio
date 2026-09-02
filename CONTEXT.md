@@ -12,6 +12,18 @@ _Avoid_: Generated sprite, source sprite
 The act of establishing a project's Reference Sprite through either generation or upload. A successful acquisition replaces the prior Reference Sprite and invalidates all downstream artifacts.
 _Avoid_: Sprite generation when referring to both methods
 
+**Style Guide Image**:
+An optional, project-scoped visual exemplar used during generation to influence the palette, linework, shading, texture, and proportions of a new Reference Sprite. It is not a source of subject identity, clothing, pose, or composition, although model adherence is best-effort. Selecting or removing one does not alter the current Reference Sprite or Downstream Artifacts.
+_Avoid_: Reference image, style reference image
+
+**Style Guide Selection**:
+The unordered set of up to three Style Guide Images prepared for the next generated Reference Sprite Acquisition. It persists independently of the current Reference Sprite and is inactive when upload acquisition is selected.
+_Avoid_: Selected references, active references
+
+**Applied Style Guide Set**:
+The Style Guide Images used by the most recent successful generated Reference Sprite Acquisition. It may differ from the Style Guide Selection; an uploaded Reference Sprite has no Applied Style Guide Set.
+_Avoid_: Used references, previous references
+
 **Acquisition Provenance**:
 The method by which the current Reference Sprite was acquired: `generated` or `uploaded`.
 _Avoid_: Source type, image type

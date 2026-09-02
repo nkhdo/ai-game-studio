@@ -12,9 +12,12 @@ import {
   loadProject,
   newProject,
   prepareSpriteUpload,
+  removeStyleGuide,
   saveProject,
   saveSelection,
   saveSpritesheet,
+  type StyleGuideImageView,
+  uploadStyleGuide,
 } from "./lib/api";
 import { Store, cacheBust, createInitialState, hydrateFromView } from "./lib/state";
 import { composeSpritesheet, downloadDataUrl, loadImage } from "./lib/spritesheet";
@@ -32,6 +35,7 @@ import {
 
 const EMPTY_PLACEHOLDER_SLOTS = 8;
 const SELECTION_DEBOUNCE_MS = 700;
+const MAX_STYLE_GUIDE_IMAGES = 3;
 
 export function mountApp(root: HTMLElement) {
   const store = new Store(createInitialState());
@@ -58,6 +62,13 @@ export function mountApp(root: HTMLElement) {
   const targetSizeSelect = root.querySelector<HTMLSelectElement>("#target-size")!;
   const subjectFillSelect = root.querySelector<HTMLSelectElement>("#subject-fill")!;
   const colorCountSelect = root.querySelector<HTMLSelectElement>("#color-count")!;
+  const styleGuideDropzone = root.querySelector<HTMLLabelElement>("#style-guide-dropzone")!;
+  const styleGuideInput = root.querySelector<HTMLInputElement>("#style-guide-input")!;
+  const styleGuideCount = root.querySelector<HTMLSpanElement>("#style-guide-count")!;
+  const styleGuideList = root.querySelector<HTMLDivElement>("#style-guide-list")!;
+  const styleGuideNotice = root.querySelector<HTMLDivElement>("#style-guide-notice")!;
+  const styleGuideStatus = root.querySelector<HTMLDivElement>("#style-guide-status")!;
+  const styleGuidesInactive = root.querySelector<HTMLDivElement>("#style-guides-inactive")!;
 
   const motionInput = root.querySelector<HTMLTextAreaElement>("#motion-prompt")!;
   const motionModelSelect = root.querySelector<HTMLSelectElement>("#motion-model")!;
@@ -106,6 +117,104 @@ export function mountApp(root: HTMLElement) {
     store.set({
       colorCount: colorCountSelect.value === "off" ? null : Number(colorCountSelect.value),
     });
+  });
+
+  styleGuideInput.addEventListener("change", () => {
+    const files = [...(styleGuideInput.files ?? [])];
+    if (files.length > 0) void uploadStyleGuideFiles(files);
+  });
+
+  for (const eventName of ["dragenter", "dragover"]) {
+    styleGuideDropzone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      if (!styleGuideInput.disabled) styleGuideDropzone.classList.add("is-dragging");
+    });
+  }
+  for (const eventName of ["dragleave", "drop"]) {
+    styleGuideDropzone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      styleGuideDropzone.classList.remove("is-dragging");
+    });
+  }
+  styleGuideDropzone.addEventListener("drop", (event) => {
+    if (styleGuideInput.disabled) return;
+    const files = [...(event.dataTransfer?.files ?? [])];
+    if (files.length > 0) void uploadStyleGuideFiles(files);
+  });
+
+  async function uploadStyleGuideFiles(files: File[]) {
+    const available = MAX_STYLE_GUIDE_IMAGES - store.get().styleGuides.length;
+    if (files.length > available) {
+      setStatus(
+        styleGuideStatus,
+        `Choose ${available} or fewer images (${MAX_STYLE_GUIDE_IMAGES} maximum).`,
+        "error",
+      );
+      styleGuideInput.value = "";
+      return;
+    }
+
+    for (const file of files) {
+      if (file.size > 10 * 1024 * 1024) {
+        setStatus(
+          styleGuideStatus,
+          `Style Guide Image '${escapeHtml(file.name)}' is too large (maximum 10 MB).`,
+          "error",
+        );
+        styleGuideInput.value = "";
+        return;
+      }
+      if (
+        file.type &&
+        !["image/png", "image/jpeg", "image/webp"].includes(file.type)
+      ) {
+        setStatus(
+          styleGuideStatus,
+          `Style Guide Image '${escapeHtml(file.name)}' must be PNG, JPEG, or WebP.`,
+          "error",
+        );
+        styleGuideInput.value = "";
+        return;
+      }
+    }
+
+    store.set({ status: "uploading-style-guide", errorMessage: null });
+    setStatus(styleGuideStatus, `${spinner()}Adding Style Guide Images…`);
+    try {
+      for (const file of files) {
+        applyView(await uploadStyleGuide(file));
+      }
+      setStatus(
+        styleGuideStatus,
+        `${files.length} Style Guide Image${files.length === 1 ? "" : "s"} added.`,
+        "success",
+      );
+      toast("Style guides updated");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to add Style Guide Image";
+      setStatus(styleGuideStatus, escapeHtml(message), "error");
+    } finally {
+      store.set({ status: "idle" });
+      styleGuideInput.value = "";
+    }
+  }
+
+  styleGuideList.addEventListener("click", async (event) => {
+    const target = (event.target as HTMLElement).closest<HTMLButtonElement>(
+      "[data-remove-style-guide]",
+    );
+    if (!target) return;
+    store.set({ status: "uploading-style-guide", errorMessage: null });
+    setStatus(styleGuideStatus, `${spinner()}Removing Style Guide Image…`);
+    try {
+      applyView(await removeStyleGuide(target.dataset.removeStyleGuide!));
+      setStatus(styleGuideStatus, "Style Guide Image removed.", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to remove Style Guide Image";
+      setStatus(styleGuideStatus, escapeHtml(message), "error");
+    } finally {
+      store.set({ status: "idle" });
+    }
   });
 
   uploadInput.addEventListener("change", () => {
@@ -347,6 +456,7 @@ export function mountApp(root: HTMLElement) {
       state.spriteSrc !== null ||
       state.frames.length > 0 ||
       state.spritePrompt.trim().length > 0 ||
+      state.styleGuides.length > 0 ||
       state.motionPrompt.trim().length > 0;
     if (hasWork && !window.confirm("Discard the current project and start fresh? Unsaved work will be lost.")) {
       return;
@@ -471,14 +581,28 @@ export function mountApp(root: HTMLElement) {
   store.subscribe((state) => {
     const busy =
       state.status === "generating-image" ||
+      state.status === "uploading-style-guide" ||
       state.status === "uploading-image" ||
       state.status === "generating-video" ||
       state.status === "extracting-frames";
 
-    generateSpriteBtn.disabled = busy || !state.hasApiKey;
+    const selectedImageModel = state.imageModels.find(
+      (model) => model.id === state.spriteModel,
+    );
+    const styleGuideLimit = Math.min(
+      MAX_STYLE_GUIDE_IMAGES,
+      selectedImageModel?.maxStyleGuideImages ?? 0,
+    );
+    const incompatibleStyleGuides =
+      state.styleGuides.length > 0 && state.styleGuides.length > styleGuideLimit;
+
+    generateSpriteBtn.disabled = busy || !state.hasApiKey || incompatibleStyleGuides;
     generateModeBtn.disabled = busy;
     uploadModeBtn.disabled = busy;
     uploadInput.disabled = busy;
+    styleGuideInput.disabled = busy || state.styleGuides.length >= styleGuideLimit;
+    styleGuideDropzone.classList.toggle("is-disabled", styleGuideInput.disabled);
+    styleGuideDropzone.setAttribute("aria-disabled", String(styleGuideInput.disabled));
     targetSizeSelect.disabled = busy;
     subjectFillSelect.disabled = busy;
     colorCountSelect.disabled = busy;
@@ -497,6 +621,27 @@ export function mountApp(root: HTMLElement) {
     generateModeBtn.setAttribute("aria-pressed", String(generateMode));
     uploadModeBtn.setAttribute("aria-pressed", String(!generateMode));
     apiKeyWarning.hidden = state.hasApiKey || !generateMode;
+
+    styleGuideCount.textContent = `${state.styleGuides.length}/${MAX_STYLE_GUIDE_IMAGES}`;
+    styleGuideList.innerHTML = renderStyleGuideImages(state.styleGuides, busy);
+    styleGuidesInactive.hidden = state.styleGuides.length === 0;
+    if (incompatibleStyleGuides) {
+      setStatus(
+        styleGuideNotice,
+        `${escapeHtml(selectedImageModel?.label ?? "This model")} supports fewer Style Guide Images. Remove guides or choose a compatible model.`,
+        "error",
+      );
+    } else if (
+      state.styleGuidesChanged &&
+      state.spriteAcquisition === "generated" &&
+      generateMode
+    ) {
+      setStatus(styleGuideNotice, "Style guides changed — regenerate to apply.");
+    } else if (state.styleGuides.length > 0 && !state.spriteSrc && generateMode) {
+      setStatus(styleGuideNotice, "These guides will apply to the next generation.");
+    } else {
+      setStatus(styleGuideNotice, "");
+    }
 
     if (state.spriteSrc) {
       spritePreview.innerHTML = `<img src="${state.spriteSrc}" alt="Reference sprite" />`;
@@ -556,7 +701,9 @@ export function mountApp(root: HTMLElement) {
     loadMenu.innerHTML = renderLoadMenu(state.savedProjects);
 
     // Re-render the model select only when the list changes (avoid clobbering user input mid-edit)
-    const imageOptionsKey = state.imageModels.map((m) => `${m.id}|${m.label}`).join(",");
+    const imageOptionsKey = state.imageModels
+      .map((m) => `${m.id}|${m.label}|${m.maxStyleGuideImages}`)
+      .join(",");
     if (imageOptionsKey !== lastImageModelOptionsKey) {
       spriteModelSelect.innerHTML = state.imageModels
         .map((m) => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.label)}</option>`)
@@ -632,6 +779,26 @@ function renderFramesGrid(frames: string[], selected: Set<number>): string {
     `);
   }
   return tiles.join("");
+}
+
+function renderStyleGuideImages(guides: StyleGuideImageView[], disabled: boolean): string {
+  return guides
+    .map(
+      (guide) => `
+        <div class="style-guide-thumb">
+          <img src="${escapeAttr(guide.url)}" alt="" />
+          <button
+            class="style-guide-thumb__remove"
+            type="button"
+            data-remove-style-guide="${escapeAttr(guide.id)}"
+            aria-label="Remove ${escapeAttr(guide.originalFilename)}"
+            title="${escapeAttr(guide.originalFilename)}"
+            ${disabled ? "disabled" : ""}
+          >×</button>
+        </div>
+      `,
+    )
+    .join("");
 }
 
 function renderLoadMenu(projects: { name: string; updatedAt: string }[]): string {
@@ -726,6 +893,29 @@ function renderShell(): string {
                   rows="3"
                 ></textarea>
               </div>
+              <div class="style-guide-field">
+                <div class="style-guide-field__header">
+                  <span class="field__label">Style Guide Images <span class="field__optional">· optional</span></span>
+                  <span id="style-guide-count" class="style-guide-field__count">0/${MAX_STYLE_GUIDE_IMAGES}</span>
+                </div>
+                <label id="style-guide-dropzone" class="style-guide-dropzone" for="style-guide-input">
+                  <input
+                    id="style-guide-input"
+                    class="visually-hidden"
+                    type="file"
+                    multiple
+                    accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                  />
+                  <span class="style-guide-dropzone__icon">${folderIcon}</span>
+                  <span>
+                    <span class="style-guide-dropzone__title">Drop style examples or choose files</span>
+                    <span class="style-guide-dropzone__hint">PNG, JPEG, or WebP · 10 MB each</span>
+                  </span>
+                </label>
+                <div id="style-guide-list" class="style-guide-list"></div>
+                <div id="style-guide-notice" class="status"></div>
+                <div id="style-guide-status" class="status"></div>
+              </div>
               <div class="field">
                 <label class="field__label" for="sprite-model">Model</label>
                 <select id="sprite-model" class="select"></select>
@@ -778,6 +968,9 @@ function renderShell(): string {
                 <span class="upload-dropzone__hint">PNG, JPEG, or WebP · max 10 MB</span>
                 <span class="upload-dropzone__hint">Use a flat #00b140 background for best results.</span>
               </label>
+              <div id="style-guides-inactive" class="status" hidden>
+                Style Guide Images are retained but inactive while Upload is selected.
+              </div>
             </div>
             <div id="api-key-warning" class="status status--error" hidden>
               OPENROUTER_API_KEY is missing. Upload still works without it.

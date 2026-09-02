@@ -11,6 +11,11 @@ import {
   isImageModelId,
 } from "./image.js";
 import {
+  addStyleGuideImage,
+  readSelectedStyleGuideDataUrls,
+  removeStyleGuideImage,
+} from "./style-guides.js";
+import {
   DEFAULT_VIDEO_MODEL,
   VIDEO_MODELS,
   defaultDurationFor,
@@ -37,6 +42,7 @@ import {
   loadProjectIntoLatest,
   readManifest,
   saveLatestAs,
+  pruneUnreferencedStyleGuides,
   toView,
   updateLatest,
   wipeLatestFramesAndSheet,
@@ -193,6 +199,24 @@ app.post("/api/projects/spritesheet", async (req, res) => {
   }
 });
 
+app.post("/api/sprites/style-guides", imageUpload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) throw new Error("image file is required");
+    res.json(await addStyleGuideImage(req.file.buffer, req.file.originalname));
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+app.post("/api/sprites/style-guides/remove", async (req, res) => {
+  try {
+    const id = asString(req.body?.id, "id", 64);
+    res.json(await removeStyleGuideImage(id));
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
 app.post("/api/sprites/generate", requireKey, async (req, res) => {
   try {
     const prompt = asString(req.body?.prompt, "prompt");
@@ -206,10 +230,30 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       subjectFillPct: req.body?.subjectFillPct,
       colorCount: req.body?.colorCount ?? null,
     });
-    const generatedBase64 = await generateSpriteImage(prompt, model, {
-      size: geometry.targetFrameSize,
-      subjectFillPct: geometry.subjectFillPct,
-    });
+    const projectBeforeGeneration = await readManifest("latest");
+    const styleGuideDataUrls = await readSelectedStyleGuideDataUrls(projectBeforeGeneration);
+    let generatedBase64: string;
+    try {
+      generatedBase64 = await generateSpriteImage(prompt, model, {
+        geometry: {
+          size: geometry.targetFrameSize,
+          subjectFillPct: geometry.subjectFillPct,
+        },
+        styleGuideDataUrls,
+      });
+    } catch (error) {
+      if (projectBeforeGeneration.styleGuideSelection.length === 0) throw error;
+      const filenames = projectBeforeGeneration.styleGuideSelection.flatMap((id) => {
+        const guide = projectBeforeGeneration.styleGuideImages.find(
+          (candidate) => candidate.id === id,
+        );
+        return guide ? [`'${guide.originalFilename}'`] : [];
+      });
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Generation with Style Guide Images ${filenames.join(", ")} failed: ${message}`,
+      );
+    }
     const normalized = await normalizeReferenceImage(Buffer.from(generatedBase64, "base64"));
     const applied = await applyTargetGeometry(normalized.buffer, geometry);
     const base64 = applied.buffer.toString("base64");
@@ -222,9 +266,10 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
     const buf = await readFile(refAbs);
     const dims = readPngDims(buf);
 
-    const m = await updateLatest({
+    let m = await updateLatest({
       spritePrompt: prompt,
       spriteModel: model,
+      appliedStyleGuideSet: [...projectBeforeGeneration.styleGuideSelection],
       spriteAcquisition: "generated",
       spriteOriginalFilename: null,
       backgroundSuitability: applied.backgroundSuitability,
@@ -239,6 +284,7 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       spritesheet: null,
       previewGif: null,
     });
+    m = await pruneUnreferencedStyleGuides(m);
 
     res.json({
       view: toView(m),

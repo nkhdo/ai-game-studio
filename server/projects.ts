@@ -5,15 +5,25 @@ import {
   LATEST_DIR,
   PROJECTS_DIR,
   PROJECT_FILES,
+  ensureInsideRoot,
   projectDir,
   safeProjectName,
 } from "./files.js";
 import type { BackgroundSuitability, SpriteAcquisition } from "./reference-sprite.js";
 
+export interface StyleGuideImage {
+  id: string;
+  originalFilename: string;
+  path: string;
+}
+
 export interface ProjectManifest {
   name: string;
   spritePrompt: string;
   spriteModel: string;
+  styleGuideImages: StyleGuideImage[];
+  styleGuideSelection: string[];
+  appliedStyleGuideSet: string[];
   spriteAcquisition: SpriteAcquisition | null;
   spriteOriginalFilename: string | null;
   backgroundSuitability: BackgroundSuitability;
@@ -36,6 +46,12 @@ export interface ProjectView {
   name: string;
   spritePrompt: string;
   spriteModel: string;
+  styleGuides: Array<{
+    id: string;
+    originalFilename: string;
+    url: string;
+  }>;
+  styleGuidesChanged: boolean;
   spriteAcquisition: SpriteAcquisition | null;
   spriteOriginalFilename: string | null;
   backgroundSuitability: BackgroundSuitability;
@@ -59,6 +75,9 @@ export function emptyManifest(name = "latest"): ProjectManifest {
     name,
     spritePrompt: "",
     spriteModel: "openai/gpt-image-2",
+    styleGuideImages: [],
+    styleGuideSelection: [],
+    appliedStyleGuideSet: [],
     spriteAcquisition: null,
     spriteOriginalFilename: null,
     backgroundSuitability: "unknown",
@@ -119,6 +138,7 @@ export async function updateLatest(
   return writeManifest("latest", { ...current, ...patch });
 }
 
+
 export function toView(m: ProjectManifest): ProjectView {
   // URLs always resolve against the working-state directory.
   // `m.name` is the conceptual project name, not the directory.
@@ -127,6 +147,15 @@ export function toView(m: ProjectManifest): ProjectView {
     name: m.name,
     spritePrompt: m.spritePrompt,
     spriteModel: m.spriteModel,
+    styleGuides: m.styleGuideSelection.flatMap((id) => {
+      const guide = m.styleGuideImages.find((candidate) => candidate.id === id);
+      return guide
+        ? [{ id: guide.id, originalFilename: guide.originalFilename, url: base + guide.path }]
+        : [];
+    }),
+    styleGuidesChanged:
+      m.styleGuideSelection.length !== m.appliedStyleGuideSet.length ||
+      m.styleGuideSelection.some((id) => !m.appliedStyleGuideSet.includes(id)),
     spriteAcquisition: m.spriteAcquisition,
     spriteOriginalFilename: m.spriteOriginalFilename,
     backgroundSuitability: m.backgroundSuitability,
@@ -144,6 +173,27 @@ export function toView(m: ProjectManifest): ProjectView {
     previewGifUrl: m.previewGif ? base + m.previewGif : null,
     updatedAt: m.updatedAt,
   };
+}
+
+export async function pruneUnreferencedStyleGuides(
+  manifest: ProjectManifest,
+): Promise<ProjectManifest> {
+  const referenced = new Set([
+    ...manifest.styleGuideSelection,
+    ...manifest.appliedStyleGuideSet,
+  ]);
+  const retained = manifest.styleGuideImages.filter((guide) => referenced.has(guide.id));
+  const removed = manifest.styleGuideImages.filter((guide) => !referenced.has(guide.id));
+  if (removed.length === 0) return manifest;
+
+  await Promise.all(
+    removed.map(async (guide) => {
+      const absolutePath = path.join(LATEST_DIR, guide.path);
+      ensureInsideRoot(absolutePath);
+      await rm(absolutePath, { force: true });
+    }),
+  );
+  return writeManifest("latest", { ...manifest, styleGuideImages: retained });
 }
 
 export async function wipeLatestFramesAndSheet(): Promise<void> {
