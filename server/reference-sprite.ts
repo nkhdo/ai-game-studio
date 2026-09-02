@@ -19,11 +19,63 @@ let preparedExpiryTimer: NodeJS.Timeout | null = null;
 export type BackgroundSuitability = "suitable" | "warning" | "unknown";
 export type SpriteAcquisition = "generated" | "uploaded";
 
+export const TARGET_FRAME_SIZES = [32, 64, 128, 192, 256] as const;
+export const SUBJECT_FILL_OPTIONS = [50, 70, 85] as const;
+export const COLOR_COUNT_OPTIONS = [4, 8, 16, 32] as const;
+export const DEFAULT_TARGET_FRAME_SIZE = 128;
+export const DEFAULT_SUBJECT_FILL_PCT = 70;
+export const DEFAULT_COLOR_COUNT = 16;
+export const SUBJECT_FILL_TOLERANCE_PCT = 10;
+
+export interface TargetGeometry {
+  targetFrameSize: { w: number; h: number };
+  subjectFillPct: number;
+  // null = keep the full generated palette ("Off" in the UI).
+  colorCount: number | null;
+}
+
+export function parseTargetGeometry(input: {
+  frameSize?: unknown;
+  subjectFillPct?: unknown;
+  colorCount?: unknown;
+}): TargetGeometry {
+  const frameSize = input.frameSize;
+  if (typeof frameSize !== "number" || !(TARGET_FRAME_SIZES as readonly number[]).includes(frameSize)) {
+    throw new Error(
+      `unsupported target frame size (use one of ${TARGET_FRAME_SIZES.join(", ")})`,
+    );
+  }
+  const subjectFillPct = input.subjectFillPct;
+  if (typeof subjectFillPct !== "number" || !(SUBJECT_FILL_OPTIONS as readonly number[]).includes(subjectFillPct)) {
+    throw new Error(
+      `unsupported subject fill (use one of ${SUBJECT_FILL_OPTIONS.join(", ")})`,
+    );
+  }
+  let colorCount: number | null = null;
+  if (input.colorCount !== null && input.colorCount !== undefined) {
+    if (typeof input.colorCount !== "number" || !(COLOR_COUNT_OPTIONS as readonly number[]).includes(input.colorCount)) {
+      throw new Error(
+        `unsupported color count (use one of ${COLOR_COUNT_OPTIONS.join(", ")} or null)`,
+      );
+    }
+    colorCount = input.colorCount;
+  }
+  return {
+    targetFrameSize: { w: frameSize, h: frameSize },
+    subjectFillPct,
+    colorCount,
+  };
+}
+
 interface PreparedMetadata {
   uploadId: string;
   originalFilename: string;
   dimensions: { w: number; h: number };
   backgroundSuitability: BackgroundSuitability;
+  targetFrameSize: { w: number; h: number };
+  subjectFillPct: number;
+  colorCount: number | null;
+  subjectFillMeasured: number | null;
   preparedAt: string;
 }
 
@@ -104,25 +156,98 @@ export async function normalizeReferenceImage(source: Buffer): Promise<Normalize
   assertDimensions(normalizedMetadata.width, normalizedMetadata.height);
   return {
     buffer,
+
     dimensions: { w: normalizedMetadata.width!, h: normalizedMetadata.height! },
     backgroundSuitability: await assessBackground(buffer),
   };
 }
 
+export interface AppliedGeometry {
+  buffer: Buffer;
+  dimensions: { w: number; h: number };
+  subjectFillMeasured: number | null;
+  backgroundSuitability: BackgroundSuitability;
+}
+
+// Forces the Reference Sprite to the exact Target Frame Size: nearest-neighbor
+// contain-fit (never stretches the subject) with letterboxing on flat chroma
+// green, then optional palette quantization. The key color is re-assessed on
+// the final buffer so a quantizer that shifted the green is caught.
+export async function applyTargetGeometry(
+  source: Buffer,
+  target: TargetGeometry,
+): Promise<AppliedGeometry> {
+  const { w, h } = target.targetFrameSize;
+  let pipeline = sharp(source, { failOn: "error" }).resize(w, h, {
+    fit: "contain",
+    kernel: "nearest",
+    background: CHROMA,
+  });
+  pipeline =
+    target.colorCount === null
+      ? pipeline.png()
+      : pipeline.png({ palette: true, colours: target.colorCount, dither: 0 });
+  const buffer = await pipeline.flatten({ background: CHROMA }).toBuffer();
+  return {
+    buffer,
+    dimensions: { w, h },
+    subjectFillMeasured: await measureSubjectFill(buffer),
+    backgroundSuitability: await assessBackground(buffer),
+  };
+}
+
+// Chroma-keyed bounding box: fraction of the frame height occupied by the
+// subject. Returns null when no subject is found or measurement fails.
+async function measureSubjectFill(buffer: Buffer): Promise<number | null> {
+  try {
+    const { data, info } = await sharp(buffer)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const { width, height, channels } = info;
+    let minY = height;
+    let maxY = -1;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const offset = (y * width + x) * channels;
+        if (data[offset + 3] === 0) continue;
+        const dr = data[offset] - CHROMA.r;
+        const dg = data[offset + 1] - CHROMA.g;
+        const db = data[offset + 2] - CHROMA.b;
+        if (Math.sqrt(dr * dr + dg * dg + db * db) > 45) {
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          break;
+        }
+      }
+    }
+    if (maxY < 0) return null;
+    return Math.round(((maxY - minY + 1) / height) * 100);
+  } catch {
+    return null;
+  }
+}
+
 export async function prepareReferenceUpload(
   source: Buffer,
   originalFilename: string,
+  target: TargetGeometry,
 ): Promise<PreparedUpload> {
   if (source.length === 0) throw new Error("image file is required");
   if (source.length > MAX_UPLOAD_BYTES) throw new Error("image is too large (maximum 10 MB)");
 
   const normalized = await normalizeReferenceImage(source);
+  const applied = await applyTargetGeometry(normalized.buffer, target);
 
   const prepared: PreparedMetadata = {
     uploadId: randomUUID(),
     originalFilename: sanitizeDisplayFilename(originalFilename),
-    dimensions: normalized.dimensions,
-    backgroundSuitability: normalized.backgroundSuitability,
+    dimensions: applied.dimensions,
+    backgroundSuitability: applied.backgroundSuitability,
+    targetFrameSize: target.targetFrameSize,
+    subjectFillPct: target.subjectFillPct,
+    colorCount: target.colorCount,
+    subjectFillMeasured: applied.subjectFillMeasured,
     preparedAt: new Date().toISOString(),
   };
 
@@ -130,7 +255,7 @@ export async function prepareReferenceUpload(
   await rm(PREPARED_DIR, { recursive: true, force: true });
   await mkdir(PREPARED_DIR, { recursive: true });
   await Promise.all([
-    writeFile(PREPARED_IMAGE, normalized.buffer),
+    writeFile(PREPARED_IMAGE, applied.buffer),
     writeFile(PREPARED_META, JSON.stringify(prepared, null, 2)),
   ]);
   if (preparedExpiryTimer) clearTimeout(preparedExpiryTimer);
@@ -181,6 +306,10 @@ export async function commitReferenceUpload(uploadId: string) {
     backgroundSuitability: prepared.backgroundSuitability,
     sprite: PROJECT_FILES.ref,
     spriteDimensions: prepared.dimensions,
+    targetFrameSize: prepared.targetFrameSize,
+    subjectFillPct: prepared.subjectFillPct,
+    colorCount: prepared.colorCount,
+    subjectFillMeasured: prepared.subjectFillMeasured,
     frames: [],
     selectedFrameIndices: [],
     spritesheet: null,

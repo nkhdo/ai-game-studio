@@ -54,6 +54,10 @@ export function mountApp(root: HTMLElement) {
   const spriteStatus = root.querySelector<HTMLDivElement>("#sprite-status")!;
   const apiKeyWarning = root.querySelector<HTMLDivElement>("#api-key-warning")!;
   const backgroundWarning = root.querySelector<HTMLDivElement>("#background-warning")!;
+  const fillWarning = root.querySelector<HTMLDivElement>("#fill-warning")!;
+  const targetSizeSelect = root.querySelector<HTMLSelectElement>("#target-size")!;
+  const subjectFillSelect = root.querySelector<HTMLSelectElement>("#subject-fill")!;
+  const colorCountSelect = root.querySelector<HTMLSelectElement>("#color-count")!;
 
   const motionInput = root.querySelector<HTMLTextAreaElement>("#motion-prompt")!;
   const motionModelSelect = root.querySelector<HTMLSelectElement>("#motion-model")!;
@@ -88,6 +92,20 @@ export function mountApp(root: HTMLElement) {
 
   uploadModeBtn.addEventListener("click", () => {
     store.set({ spriteAcquisitionMode: "upload" });
+  });
+
+  targetSizeSelect.addEventListener("change", () => {
+    store.set({ frameSize: Number(targetSizeSelect.value) });
+  });
+
+  subjectFillSelect.addEventListener("change", () => {
+    store.set({ subjectFillPct: Number(subjectFillSelect.value) });
+  });
+
+  colorCountSelect.addEventListener("change", () => {
+    store.set({
+      colorCount: colorCountSelect.value === "off" ? null : Number(colorCountSelect.value),
+    });
   });
 
   uploadInput.addEventListener("change", () => {
@@ -126,10 +144,15 @@ export function mountApp(root: HTMLElement) {
     }
 
     const promptDraft = store.get().spritePrompt;
+    const geometry = {
+      frameSize: store.get().frameSize,
+      subjectFillPct: store.get().subjectFillPct,
+      colorCount: store.get().colorCount,
+    };
     store.set({ status: "uploading-image", errorMessage: null });
     setStatus(spriteStatus, `${spinner()}Preparing reference sprite…`);
     try {
-      const prepared = await prepareSpriteUpload(file);
+      const prepared = await prepareSpriteUpload(file, geometry);
       if (
         prepared.requiresConfirmation &&
         !window.confirm(
@@ -174,21 +197,20 @@ export function mountApp(root: HTMLElement) {
     store.set({ status: "generating-image", errorMessage: null });
     setStatus(spriteStatus, `${spinner()}Generating reference sprite…`);
     try {
-      const result = await generateSprite(prompt, store.get().spriteModel);
+      const state = store.get();
+      const result = await generateSprite(prompt, state.spriteModel, {
+        frameSize: state.frameSize,
+        subjectFillPct: state.subjectFillPct,
+        colorCount: state.colorCount,
+      });
       const img = await loadImage(result.dataUrl);
+      const patch = hydrateFromView(result.view);
       store.set({
+        ...patch,
         status: "idle",
+        errorMessage: null,
         spriteSrc: result.dataUrl,
         spriteDimensions: { w: img.naturalWidth, h: img.naturalHeight },
-        spriteAcquisition: result.view.spriteAcquisition,
-        spriteOriginalFilename: result.view.spriteOriginalFilename,
-        backgroundSuitability: result.view.backgroundSuitability,
-        frames: [],
-        selectedFrameIndices: new Set(),
-        spritesheetSrc: null,
-        spritesheetCols: null,
-        previewGifSrc: null,
-        previewGifBuilding: false,
       });
       setStatus(spriteStatus, "Reference sprite ready.", "success");
       toast("Reference sprite generated");
@@ -457,7 +479,9 @@ export function mountApp(root: HTMLElement) {
     generateModeBtn.disabled = busy;
     uploadModeBtn.disabled = busy;
     uploadInput.disabled = busy;
-    spriteModelSelect.disabled = busy;
+    targetSizeSelect.disabled = busy;
+    subjectFillSelect.disabled = busy;
+    colorCountSelect.disabled = busy;
     generateFramesBtn.disabled = busy || !state.spriteSrc;
     generateSheetBtn.disabled = busy || state.frames.length === 0;
     exportBtn.disabled = !state.spritesheetSrc;
@@ -492,6 +516,22 @@ export function mountApp(root: HTMLElement) {
       !state.spriteSrc || state.backgroundSuitability !== "warning";
 
     framesGrid.innerHTML = renderFramesGrid(state.frames, state.selectedFrameIndices);
+
+    const frameSizeValue = String(state.frameSize);
+    if (targetSizeSelect.value !== frameSizeValue) targetSizeSelect.value = frameSizeValue;
+    const fillValue = String(state.subjectFillPct);
+    if (subjectFillSelect.value !== fillValue) subjectFillSelect.value = fillValue;
+    const colorValue = state.colorCount === null ? "off" : String(state.colorCount);
+    if (colorCountSelect.value !== colorValue) colorCountSelect.value = colorValue;
+
+    const showFillWarning =
+      Boolean(state.spriteSrc) &&
+      state.subjectFillMeasured !== null &&
+      Math.abs(state.subjectFillMeasured - state.subjectFillPct) > 10;
+    fillWarning.hidden = !showFillWarning;
+    if (showFillWarning) {
+      fillWarning.textContent = `Subject fills ${state.subjectFillMeasured}% of the frame — target is ${state.subjectFillPct}%.`;
+    }
 
     if (state.spritesheetSrc && state.spritesheetCols) {
       sheetPreview.innerHTML = `<img src="${state.spritesheetSrc}" alt="Spritesheet" />`;
@@ -695,6 +735,36 @@ function renderShell(): string {
                 Generate Reference Sprite
               </button>
             </div>
+            <div class="geometry-row">
+              <div class="field">
+                <label class="field__label" for="target-size">Frame Size</label>
+                <select id="target-size" class="select">
+                  <option value="32">32 × 32</option>
+                  <option value="64">64 × 64</option>
+                  <option value="128">128 × 128</option>
+                  <option value="192">192 × 192</option>
+                  <option value="256">256 × 256</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field__label" for="subject-fill">Subject Fill</label>
+                <select id="subject-fill" class="select">
+                  <option value="50">50%</option>
+                  <option value="70">70%</option>
+                  <option value="85">85%</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field__label" for="color-count">Palette</label>
+                <select id="color-count" class="select">
+                  <option value="off">Off</option>
+                  <option value="4">4 colors</option>
+                  <option value="8">8 colors</option>
+                  <option value="16">16 colors</option>
+                  <option value="32">32 colors</option>
+                </select>
+              </div>
+            </div>
             <div id="upload-panel" class="acquisition-panel" hidden>
               <label id="upload-dropzone" class="upload-dropzone" for="sprite-upload">
                 <input
@@ -722,6 +792,7 @@ function renderShell(): string {
               <div id="background-warning" class="background-warning" hidden>
                 Background may not key cleanly. Use a flat #00b140 background for best results.
               </div>
+              <div id="fill-warning" class="background-warning" hidden></div>
             </div>
           </section>
 

@@ -7,6 +7,9 @@ import type {
 
 export const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2";
 export const DEFAULT_VIDEO_MODEL = "x-ai/grok-imagine-video";
+export const DEFAULT_TARGET_FRAME_SIZE = 128;
+export const DEFAULT_SUBJECT_FILL_PCT = 70;
+export const DEFAULT_COLOR_COUNT: number | null = 16;
 
 export type AppStatus =
   | "idle"
@@ -33,6 +36,10 @@ export interface AppState {
   videoModels: VideoModelOption[];
   spriteSrc: string | null;
   spriteDimensions: { w: number; h: number } | null;
+  frameSize: number;
+  subjectFillPct: number;
+  colorCount: number | null;
+  subjectFillMeasured: number | null;
   frames: string[];
   selectedFrameIndices: Set<number>;
   spritesheetSrc: string | null;
@@ -60,6 +67,10 @@ export function createInitialState(): AppState {
     videoModels: [],
     spriteSrc: null,
     spriteDimensions: null,
+    frameSize: DEFAULT_TARGET_FRAME_SIZE,
+    subjectFillPct: DEFAULT_SUBJECT_FILL_PCT,
+    colorCount: DEFAULT_COLOR_COUNT,
+    subjectFillMeasured: null,
     frames: [],
     selectedFrameIndices: new Set(),
     spritesheetSrc: null,
@@ -90,6 +101,10 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
     motionModel: view.motionModel || DEFAULT_VIDEO_MODEL,
     spriteSrc: cacheBust(view.spriteUrl, v),
     spriteDimensions: view.spriteDimensions,
+    frameSize: view.targetFrameSize?.w ?? DEFAULT_TARGET_FRAME_SIZE,
+    subjectFillPct: view.subjectFillPct ?? DEFAULT_SUBJECT_FILL_PCT,
+    colorCount: view.targetFrameSize ? view.colorCount : DEFAULT_COLOR_COUNT,
+    subjectFillMeasured: view.subjectFillMeasured ?? null,
     frames: view.frames.map((f) => cacheBust(f, v)!),
     selectedFrameIndices: new Set(view.selectedFrameIndices),
     spritesheetSrc: cacheBust(view.spritesheetUrl, v),
