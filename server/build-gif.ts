@@ -6,6 +6,7 @@ import { LATEST_DIR, PROJECT_FILES, ensureInsideRoot } from "./files.js";
 
 export async function buildPreviewGif(
   selectedIndices: number[],
+  frameSize: number,
   fps = 12,
 ): Promise<string> {
   const framesDir = path.join(LATEST_DIR, PROJECT_FILES.framesDir);
@@ -43,9 +44,7 @@ export async function buildPreviewGif(
   const outputPath = path.join(LATEST_DIR, PROJECT_FILES.previewGif);
   if (existsSync(outputPath)) await rm(outputPath);
 
-  // Scale to thumbnail height, then high-quality palette with reserved transparency slot
-  const filter =
-    "scale=-1:200,split [a][b]; [a] palettegen=reserve_transparent=on [p]; [b][p] paletteuse=dither=bayer:bayer_scale=5";
+  const filter = previewGifFilter(frameSize);
 
   try {
     await new Promise<void>((resolve, reject) => {
@@ -71,4 +70,13 @@ export async function buildPreviewGif(
   }
 
   return PROJECT_FILES.previewGif;
+}
+
+export function previewGifFilter(frameSize: number): string {
+  return (
+    `scale=${frameSize}:${frameSize}:force_original_aspect_ratio=decrease,` +
+    `pad=${frameSize}:${frameSize}:(ow-iw)/2:(oh-ih)/2:color=black@0,` +
+    "split [a][b]; [a] palettegen=reserve_transparent=on [p]; " +
+    "[b][p] paletteuse=dither=bayer:bayer_scale=5"
+  );
 }

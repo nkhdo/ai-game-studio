@@ -393,7 +393,10 @@ export function mountApp(root: HTMLElement) {
     }
     setStatus(framesStatus, `${spinner()}Composing spritesheet…`);
     try {
-      const sheet = await composeSpritesheet({ frameSrcs: selected });
+      const sheet = await composeSpritesheet({
+        frameSrcs: selected,
+        cellSize: state.frameSize,
+      });
       store.set({
         spritesheetSrc: sheet.dataUrl,
         spritesheetCols: sheet.cols,

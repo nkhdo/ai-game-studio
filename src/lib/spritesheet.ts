@@ -10,7 +10,7 @@ export async function loadImage(src: string): Promise<HTMLImageElement> {
 
 export interface SpritesheetOptions {
   frameSrcs: string[];
-  cellSize?: number;
+  cellSize: number;
 }
 
 export interface SpritesheetResult {
@@ -21,7 +21,7 @@ export interface SpritesheetResult {
 
 export async function composeSpritesheet({
   frameSrcs,
-  cellSize = 128,
+  cellSize,
 }: SpritesheetOptions): Promise<SpritesheetResult> {
   if (frameSrcs.length === 0) {
     throw new Error("no frames selected");
