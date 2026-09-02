@@ -50,6 +50,7 @@ import {
 } from "./projects.js";
 import { rm } from "node:fs/promises";
 import {
+  DEFAULT_TARGET_FRAME_SIZE,
   commitReferenceUpload,
   discardPreparedUpload,
   normalizeReferenceImage,
@@ -185,7 +186,10 @@ app.post("/api/projects/spritesheet", async (req, res) => {
 
     // Best-effort GIF build from current selection
     try {
-      const gifName = await buildPreviewGif(m.selectedFrameIndices);
+      const gifName = await buildPreviewGif(
+        m.selectedFrameIndices,
+        m.targetFrameSize?.w ?? DEFAULT_TARGET_FRAME_SIZE,
+      );
       m = await updateLatest({ previewGif: gifName });
     } catch (gifErr) {
       const msg = gifErr instanceof Error ? gifErr.message : String(gifErr);
