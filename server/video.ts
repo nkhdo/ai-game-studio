@@ -13,6 +13,12 @@ export const VIDEO_MODELS = [
   { id: "x-ai/grok-imagine-video", label: "Grok Imagine Video", defaultDuration: 2 },
   { id: "minimax/hailuo-3", label: "MiniMax H3", defaultDuration: 5 },
   { id: "bytedance/seedance-2.0", label: "Seedance 2.0", defaultDuration: 4 },
+  {
+    id: "bytedance/seedance-2.0-mini",
+    label: "Seedance 2.0 Mini",
+    defaultDuration: 4,
+  },
+  { id: "bytedance/seedance-2.5", label: "Seedance 2.5", defaultDuration: 4 },
 ] as const;
 
 export type VideoModelId = (typeof VIDEO_MODELS)[number]["id"];
