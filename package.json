@@ -8,7 +8,7 @@
     "dev:server": "tsx watch server/index.ts",
     "dev:client": "vite",
     "build": "tsc -p tsconfig.json && vite build",
-    "test": "tsx --test server/*.test.ts",
+    "test": "tsx --import ./server/test-setup.ts --test server/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
