@@ -48,6 +48,8 @@ import {
   discardPreparedUpload,
   normalizeReferenceImage,
   prepareReferenceUpload,
+  applyTargetGeometry,
+  parseTargetGeometry,
 } from "./reference-sprite.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -199,9 +201,18 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       throw new Error("unsupported image model");
     }
     const model = requestedModel ?? DEFAULT_IMAGE_MODEL;
-    const generatedBase64 = await generateSpriteImage(prompt, model);
+    const geometry = parseTargetGeometry({
+      frameSize: req.body?.frameSize,
+      subjectFillPct: req.body?.subjectFillPct,
+      colorCount: req.body?.colorCount ?? null,
+    });
+    const generatedBase64 = await generateSpriteImage(prompt, model, {
+      size: geometry.targetFrameSize,
+      subjectFillPct: geometry.subjectFillPct,
+    });
     const normalized = await normalizeReferenceImage(Buffer.from(generatedBase64, "base64"));
-    const base64 = normalized.buffer.toString("base64");
+    const applied = await applyTargetGeometry(normalized.buffer, geometry);
+    const base64 = applied.buffer.toString("base64");
 
     // Reset downstream artifacts (frames + spritesheet) before writing the new sprite
     await wipeLatestFramesAndSheet();
@@ -216,9 +227,13 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       spriteModel: model,
       spriteAcquisition: "generated",
       spriteOriginalFilename: null,
-      backgroundSuitability: normalized.backgroundSuitability,
+      backgroundSuitability: applied.backgroundSuitability,
       sprite: PROJECT_FILES.ref,
-      spriteDimensions: dims ?? normalized.dimensions,
+      spriteDimensions: dims ?? applied.dimensions,
+      targetFrameSize: geometry.targetFrameSize,
+      subjectFillPct: geometry.subjectFillPct,
+      colorCount: geometry.colorCount,
+      subjectFillMeasured: applied.subjectFillMeasured,
       frames: [],
       selectedFrameIndices: [],
       spritesheet: null,
@@ -237,7 +252,18 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
 app.post("/api/sprites/upload/prepare", imageUpload.single("image"), async (req, res) => {
   try {
     if (!req.file) throw new Error("image file is required");
-    res.json(await prepareReferenceUpload(req.file.buffer, req.file.originalname));
+    const geometry = parseTargetGeometry({
+      frameSize: req.body?.frameSize === undefined ? undefined : Number(req.body.frameSize),
+      subjectFillPct:
+        req.body?.subjectFillPct === undefined ? undefined : Number(req.body.subjectFillPct),
+      colorCount:
+        req.body?.colorCount === undefined || req.body.colorCount === ""
+          ? null
+          : Number(req.body.colorCount),
+    });
+    res.json(
+      await prepareReferenceUpload(req.file.buffer, req.file.originalname, geometry),
+    );
   } catch (err) {
     handleError(err, res);
   }

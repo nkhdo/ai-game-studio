@@ -23,3 +23,11 @@ _Avoid_: Background validity, chroma validation
 **Downstream Artifacts**:
 Movement frames, spritesheets, and animated previews derived from the current Reference Sprite.
 _Avoid_: Outputs when specifically referring to derived project artifacts
+
+**Target Frame Size**:
+The requested pixel dimensions of the Reference Sprite. Acquisition guarantees the stored Reference Sprite exactly matches it, rescaling the image and extending the chroma-green background as needed rather than distorting the subject.
+_Avoid_: Output size, resolution, frame size when referring to animation frames
+
+**Subject Fill**:
+The fraction of the Reference Sprite's frame height occupied by the subject. It is requested during acquisition as generation guidance; the achieved fill is measured and reported, never enforced.
+_Avoid_: Object target height, object height, sprite scale

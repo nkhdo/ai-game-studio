@@ -315,6 +315,16 @@ button {
   gap: 14px;
 }
 
+.geometry-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.geometry-row .field {
+  min-width: 0;
+}
+
 .upload-dropzone {
   min-height: 190px;
   padding: 22px 16px;

@@ -9,6 +9,10 @@ export interface ProjectView {
   motionModel: string;
   spriteUrl: string | null;
   spriteDimensions: { w: number; h: number } | null;
+  targetFrameSize: { w: number; h: number } | null;
+  subjectFillPct: number | null;
+  colorCount: number | null;
+  subjectFillMeasured: number | null;
   frames: string[];
   selectedFrameIndices: number[];
   spritesheetUrl: string | null;
@@ -25,6 +29,12 @@ export interface VideoModelOption {
 export interface ImageModelOption {
   id: string;
   label: string;
+}
+
+export interface AcquisitionGeometry {
+  frameSize: number;
+  subjectFillPct: number;
+  colorCount: number | null;
 }
 
 export interface ImageModelsResponse {
@@ -85,13 +95,26 @@ async function getJson<T>(path: string): Promise<T> {
 export function generateSprite(
   prompt: string,
   model?: string,
+  geometry?: AcquisitionGeometry,
 ): Promise<GenerateSpriteResponse> {
-  return postJson("/api/sprites/generate", { prompt, model });
+  return postJson("/api/sprites/generate", {
+    prompt,
+    model,
+    frameSize: geometry?.frameSize,
+    subjectFillPct: geometry?.subjectFillPct,
+    colorCount: geometry?.colorCount ?? null,
+  });
 }
 
-export async function prepareSpriteUpload(file: File): Promise<PreparedSpriteUpload> {
+export async function prepareSpriteUpload(
+  file: File,
+  geometry: AcquisitionGeometry,
+): Promise<PreparedSpriteUpload> {
   const body = new FormData();
   body.append("image", file);
+  body.append("frameSize", String(geometry.frameSize));
+  body.append("subjectFillPct", String(geometry.subjectFillPct));
+  if (geometry.colorCount !== null) body.append("colorCount", String(geometry.colorCount));
   const res = await fetch("/api/sprites/upload/prepare", { method: "POST", body });
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {

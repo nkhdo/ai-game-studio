@@ -114,11 +114,15 @@ export async function normalizeImageToPng(
 export async function generateSpriteImage(
   prompt: string,
   model: ImageModelId = DEFAULT_IMAGE_MODEL,
+  geometry?: { size: { w: number; h: number }; subjectFillPct: number },
 ): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
 
-  const fullPrompt = `${prompt.trim()}\n\n${CHROMA_DIRECTIVE}`;
+  const fillDirective = geometry
+    ? ` The subject occupies about ${geometry.subjectFillPct}% of the total image height, vertically centered, with empty margins above and below.`
+    : "";
+  const fullPrompt = `${prompt.trim()}\n\n${CHROMA_DIRECTIVE}${fillDirective}`;
 
   const res = await fetch(`${OPENROUTER_BASE}/images`, {
     method: "POST",
@@ -126,7 +130,11 @@ export async function generateSpriteImage(
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ model, prompt: fullPrompt }),
+    body: JSON.stringify({
+      model,
+      prompt: fullPrompt,
+      ...(geometry ? { size: `${geometry.size.w}x${geometry.size.h}` } : {}),
+    }),
   });
 
   const json = (await res.json().catch(() => ({}))) as ImageGenerationResponse;

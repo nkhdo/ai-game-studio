@@ -21,6 +21,10 @@ export interface ProjectManifest {
   motionModel: string;
   sprite: string | null;
   spriteDimensions: { w: number; h: number } | null;
+  targetFrameSize: { w: number; h: number } | null;
+  subjectFillPct: number | null;
+  colorCount: number | null;
+  subjectFillMeasured: number | null;
   frames: string[];
   selectedFrameIndices: number[];
   spritesheet: string | null;
@@ -39,6 +43,10 @@ export interface ProjectView {
   motionModel: string;
   spriteUrl: string | null;
   spriteDimensions: { w: number; h: number } | null;
+  targetFrameSize: { w: number; h: number } | null;
+  subjectFillPct: number | null;
+  colorCount: number | null;
+  subjectFillMeasured: number | null;
   frames: string[];
   selectedFrameIndices: number[];
   spritesheetUrl: string | null;
@@ -58,6 +66,10 @@ export function emptyManifest(name = "latest"): ProjectManifest {
     motionModel: "x-ai/grok-imagine-video",
     sprite: null,
     spriteDimensions: null,
+    targetFrameSize: null,
+    subjectFillPct: null,
+    colorCount: null,
+    subjectFillMeasured: null,
     frames: [],
     selectedFrameIndices: [],
     spritesheet: null,
@@ -122,6 +134,10 @@ export function toView(m: ProjectManifest): ProjectView {
     motionModel: m.motionModel,
     spriteUrl: m.sprite ? base + m.sprite : null,
     spriteDimensions: m.spriteDimensions,
+    targetFrameSize: m.targetFrameSize ?? null,
+    subjectFillPct: m.subjectFillPct ?? null,
+    colorCount: m.colorCount ?? null,
+    subjectFillMeasured: m.subjectFillMeasured ?? null,
     frames: m.frames.map((f) => base + f),
     selectedFrameIndices: m.selectedFrameIndices,
     spritesheetUrl: m.spritesheet ? base + m.spritesheet : null,
