@@ -8,11 +8,15 @@ import {
   projectDir,
   safeProjectName,
 } from "./files.js";
+import type { BackgroundSuitability, SpriteAcquisition } from "./reference-sprite.js";
 
 export interface ProjectManifest {
   name: string;
   spritePrompt: string;
   spriteModel: string;
+  spriteAcquisition: SpriteAcquisition | null;
+  spriteOriginalFilename: string | null;
+  backgroundSuitability: BackgroundSuitability;
   motionPrompt: string;
   motionModel: string;
   sprite: string | null;
@@ -28,6 +32,9 @@ export interface ProjectView {
   name: string;
   spritePrompt: string;
   spriteModel: string;
+  spriteAcquisition: SpriteAcquisition | null;
+  spriteOriginalFilename: string | null;
+  backgroundSuitability: BackgroundSuitability;
   motionPrompt: string;
   motionModel: string;
   spriteUrl: string | null;
@@ -44,6 +51,9 @@ export function emptyManifest(name = "latest"): ProjectManifest {
     name,
     spritePrompt: "",
     spriteModel: "openai/gpt-image-2",
+    spriteAcquisition: null,
+    spriteOriginalFilename: null,
+    backgroundSuitability: "unknown",
     motionPrompt: "",
     motionModel: "x-ai/grok-imagine-video",
     sprite: null,
@@ -69,7 +79,9 @@ export async function readManifest(dirName: string): Promise<ProjectManifest> {
   try {
     const raw = await readFile(p, "utf8");
     const parsed = JSON.parse(raw) as Partial<ProjectManifest>;
-    return { ...emptyManifest(dirName), ...parsed };
+    const hydrated = { ...emptyManifest(dirName), ...parsed };
+    if (!hydrated.spriteAcquisition && hydrated.sprite) hydrated.spriteAcquisition = "generated";
+    return hydrated;
   } catch {
     return emptyManifest(dirName);
   }
@@ -103,6 +115,9 @@ export function toView(m: ProjectManifest): ProjectView {
     name: m.name,
     spritePrompt: m.spritePrompt,
     spriteModel: m.spriteModel,
+    spriteAcquisition: m.spriteAcquisition,
+    spriteOriginalFilename: m.spriteOriginalFilename,
+    backgroundSuitability: m.backgroundSuitability,
     motionPrompt: m.motionPrompt,
     motionModel: m.motionModel,
     spriteUrl: m.sprite ? base + m.sprite : null,
@@ -161,7 +176,10 @@ export async function saveLatestAs(name: string): Promise<ProjectView> {
   if (existsSync(target)) {
     await rm(target, { recursive: true, force: true });
   }
-  await cp(LATEST_DIR, target, { recursive: true });
+  await cp(LATEST_DIR, target, {
+    recursive: true,
+    filter: (source) => path.basename(source) !== ".tmp-upload",
+  });
 
   return toView(await readManifest("latest"));
 }

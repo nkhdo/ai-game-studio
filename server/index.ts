@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express, { type Request, type Response, type NextFunction } from "express";
+import multer from "multer";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -42,6 +43,12 @@ import {
   wipeLatestSpritesheet,
 } from "./projects.js";
 import { rm } from "node:fs/promises";
+import {
+  commitReferenceUpload,
+  discardPreparedUpload,
+  normalizeReferenceImage,
+  prepareReferenceUpload,
+} from "./reference-sprite.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const HAS_KEY = Boolean(process.env.OPENROUTER_API_KEY);
@@ -49,6 +56,10 @@ const HAS_KEY = Boolean(process.env.OPENROUTER_API_KEY);
 const app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use("/projects", express.static(PROJECTS_DIR, { fallthrough: false }));
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { files: 1, fileSize: 10 * 1024 * 1024 },
+});
 
 function requireKey(_req: Request, res: Response, next: NextFunction) {
   if (!HAS_KEY) {
@@ -188,7 +199,9 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       throw new Error("unsupported image model");
     }
     const model = requestedModel ?? DEFAULT_IMAGE_MODEL;
-    const base64 = await generateSpriteImage(prompt, model);
+    const generatedBase64 = await generateSpriteImage(prompt, model);
+    const normalized = await normalizeReferenceImage(Buffer.from(generatedBase64, "base64"));
+    const base64 = normalized.buffer.toString("base64");
 
     // Reset downstream artifacts (frames + spritesheet) before writing the new sprite
     await wipeLatestFramesAndSheet();
@@ -201,8 +214,11 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
     const m = await updateLatest({
       spritePrompt: prompt,
       spriteModel: model,
+      spriteAcquisition: "generated",
+      spriteOriginalFilename: null,
+      backgroundSuitability: normalized.backgroundSuitability,
       sprite: PROJECT_FILES.ref,
-      spriteDimensions: dims,
+      spriteDimensions: dims ?? normalized.dimensions,
       frames: [],
       selectedFrameIndices: [],
       spritesheet: null,
@@ -213,6 +229,33 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       view: toView(m),
       dataUrl: `data:image/png;base64,${base64}`,
     });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+app.post("/api/sprites/upload/prepare", imageUpload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) throw new Error("image file is required");
+    res.json(await prepareReferenceUpload(req.file.buffer, req.file.originalname));
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+app.post("/api/sprites/upload/commit", async (req, res) => {
+  try {
+    const uploadId = asString(req.body?.uploadId, "uploadId", 64);
+    res.json(await commitReferenceUpload(uploadId));
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+app.post("/api/sprites/upload/discard", async (_req, res) => {
+  try {
+    await discardPreparedUpload();
+    res.json({ ok: true });
   } catch (err) {
     handleError(err, res);
   }
@@ -268,15 +311,26 @@ async function resolveImageInput(image: string): Promise<string> {
 }
 
 function handleError(err: unknown, res: Response) {
-  const message = err instanceof Error ? err.message : "Unknown error";
+  const message =
+    err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE"
+      ? "image is too large (maximum 10 MB)"
+      : err instanceof Error
+        ? err.message
+        : "Unknown error";
   const safe = redact(message);
   console.error("[api error]", safe);
   res.status(400).json({ error: safe });
 }
 
 function redact(msg: string): string {
-  return msg.replace(/sk-or-[A-Za-z0-9_-]+/g, "***");
+  return msg
+    .replace(/sk-or-[A-Za-z0-9_-]+/g, "***")
+    .replace(/xai-[A-Za-z0-9_-]+/g, "***");
 }
+
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  handleError(err, res);
+});
 
 app.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`);

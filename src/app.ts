@@ -1,7 +1,9 @@
 import {
   animateSprite,
   checkHealth,
+  commitSpriteUpload,
   deleteProject,
+  discardSpriteUpload,
   generateSprite,
   getCurrentProject,
   getImageModels,
@@ -9,6 +11,7 @@ import {
   listProjects,
   loadProject,
   newProject,
+  prepareSpriteUpload,
   saveProject,
   saveSelection,
   saveSpritesheet,
@@ -38,11 +41,19 @@ export function mountApp(root: HTMLElement) {
 
   // ---- Refs ----
   const promptInput = root.querySelector<HTMLTextAreaElement>("#sprite-prompt")!;
+  const generateModeBtn = root.querySelector<HTMLButtonElement>("#mode-generate")!;
+  const uploadModeBtn = root.querySelector<HTMLButtonElement>("#mode-upload")!;
+  const generatePanel = root.querySelector<HTMLDivElement>("#generate-panel")!;
+  const uploadPanel = root.querySelector<HTMLDivElement>("#upload-panel")!;
+  const uploadDropzone = root.querySelector<HTMLLabelElement>("#upload-dropzone")!;
+  const uploadInput = root.querySelector<HTMLInputElement>("#sprite-upload")!;
   const spriteModelSelect = root.querySelector<HTMLSelectElement>("#sprite-model")!;
   const generateSpriteBtn = root.querySelector<HTMLButtonElement>("#btn-generate-sprite")!;
   const spritePreview = root.querySelector<HTMLDivElement>("#sprite-preview")!;
   const spriteCaption = root.querySelector<HTMLDivElement>("#sprite-caption")!;
   const spriteStatus = root.querySelector<HTMLDivElement>("#sprite-status")!;
+  const apiKeyWarning = root.querySelector<HTMLDivElement>("#api-key-warning")!;
+  const backgroundWarning = root.querySelector<HTMLDivElement>("#background-warning")!;
 
   const motionInput = root.querySelector<HTMLTextAreaElement>("#motion-prompt")!;
   const motionModelSelect = root.querySelector<HTMLSelectElement>("#motion-model")!;
@@ -71,6 +82,81 @@ export function mountApp(root: HTMLElement) {
     store.set({ spriteModel: spriteModelSelect.value });
   });
 
+  generateModeBtn.addEventListener("click", () => {
+    store.set({ spriteAcquisitionMode: "generate" });
+  });
+
+  uploadModeBtn.addEventListener("click", () => {
+    store.set({ spriteAcquisitionMode: "upload" });
+  });
+
+  uploadInput.addEventListener("change", () => {
+    const file = uploadInput.files?.[0];
+    if (file) void uploadReferenceSprite(file);
+  });
+
+  for (const eventName of ["dragenter", "dragover"]) {
+    uploadDropzone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      uploadDropzone.classList.add("is-dragging");
+    });
+  }
+  for (const eventName of ["dragleave", "drop"]) {
+    uploadDropzone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      uploadDropzone.classList.remove("is-dragging");
+    });
+  }
+  uploadDropzone.addEventListener("drop", (event) => {
+    const file = event.dataTransfer?.files[0];
+    if (file) void uploadReferenceSprite(file);
+  });
+
+  async function uploadReferenceSprite(file: File) {
+    const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+    if (file.size > 10 * 1024 * 1024) {
+      setStatus(spriteStatus, "Image is too large (maximum 10 MB).", "error");
+      uploadInput.value = "";
+      return;
+    }
+    if (file.type && !allowedTypes.has(file.type)) {
+      setStatus(spriteStatus, "Use a PNG, JPEG, or WebP image.", "error");
+      uploadInput.value = "";
+      return;
+    }
+
+    const promptDraft = store.get().spritePrompt;
+    store.set({ status: "uploading-image", errorMessage: null });
+    setStatus(spriteStatus, `${spinner()}Preparing reference sprite…`);
+    try {
+      const prepared = await prepareSpriteUpload(file);
+      if (
+        prepared.requiresConfirmation &&
+        !window.confirm(
+          "Replace the Reference Sprite? Existing movement frames and spritesheet will be removed.",
+        )
+      ) {
+        await discardSpriteUpload();
+        store.set({ status: "idle" });
+        setStatus(spriteStatus, "Upload cancelled.");
+        return;
+      }
+      const view = await commitSpriteUpload(prepared.uploadId);
+      const patch = hydrateFromView(view);
+      store.set({ ...patch, spritePrompt: promptDraft, status: "idle", errorMessage: null });
+      promptInput.value = promptDraft;
+      motionInput.value = view.motionPrompt;
+      setStatus(spriteStatus, "Reference sprite uploaded.", "success");
+      toast("Reference sprite uploaded");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to upload image";
+      store.set({ status: "error", errorMessage: message });
+      setStatus(spriteStatus, message, "error");
+    } finally {
+      uploadInput.value = "";
+    }
+  }
+
   motionInput.addEventListener("input", () => {
     store.set({ motionPrompt: motionInput.value });
   });
@@ -94,6 +180,9 @@ export function mountApp(root: HTMLElement) {
         status: "idle",
         spriteSrc: result.dataUrl,
         spriteDimensions: { w: img.naturalWidth, h: img.naturalHeight },
+        spriteAcquisition: result.view.spriteAcquisition,
+        spriteOriginalFilename: result.view.spriteOriginalFilename,
+        backgroundSuitability: result.view.backgroundSuitability,
         frames: [],
         selectedFrameIndices: new Set(),
         spritesheetSrc: null,
@@ -360,19 +449,38 @@ export function mountApp(root: HTMLElement) {
   store.subscribe((state) => {
     const busy =
       state.status === "generating-image" ||
+      state.status === "uploading-image" ||
       state.status === "generating-video" ||
       state.status === "extracting-frames";
 
-    generateSpriteBtn.disabled = busy;
+    generateSpriteBtn.disabled = busy || !state.hasApiKey;
+    generateModeBtn.disabled = busy;
+    uploadModeBtn.disabled = busy;
+    uploadInput.disabled = busy;
     spriteModelSelect.disabled = busy;
     generateFramesBtn.disabled = busy || !state.spriteSrc;
     generateSheetBtn.disabled = busy || state.frames.length === 0;
     exportBtn.disabled = !state.spritesheetSrc;
+    newBtn.disabled = busy;
+    saveBtn.disabled = busy;
+    loadBtn.disabled = busy;
+
+    const generateMode = state.spriteAcquisitionMode === "generate";
+    generatePanel.hidden = !generateMode;
+    uploadPanel.hidden = generateMode;
+    generateModeBtn.classList.toggle("is-active", generateMode);
+    uploadModeBtn.classList.toggle("is-active", !generateMode);
+    generateModeBtn.setAttribute("aria-pressed", String(generateMode));
+    uploadModeBtn.setAttribute("aria-pressed", String(!generateMode));
+    apiKeyWarning.hidden = state.hasApiKey || !generateMode;
 
     if (state.spriteSrc) {
       spritePreview.innerHTML = `<img src="${state.spriteSrc}" alt="Reference sprite" />`;
       if (state.spriteDimensions) {
-        spriteCaption.textContent = `${state.spriteDimensions.w} × ${state.spriteDimensions.h} px`;
+        const dimensions = `${state.spriteDimensions.w} × ${state.spriteDimensions.h} px`;
+        spriteCaption.textContent = state.spriteOriginalFilename
+          ? `${state.spriteOriginalFilename} · ${dimensions}`
+          : dimensions;
       } else {
         spriteCaption.textContent = "—";
       }
@@ -380,6 +488,8 @@ export function mountApp(root: HTMLElement) {
       spritePreview.innerHTML = `<span class="preview__placeholder">No sprite yet</span>`;
       spriteCaption.textContent = "—";
     }
+    backgroundWarning.hidden =
+      !state.spriteSrc || state.backgroundSuitability !== "warning";
 
     framesGrid.innerHTML = renderFramesGrid(state.frames, state.selectedFrameIndices);
 
@@ -438,14 +548,8 @@ export function mountApp(root: HTMLElement) {
     getVideoModels(),
   ])
     .then(([health, view, projects, imageModelsResp, videoModelsResp]) => {
-      if (!health.hasApiKey) {
-        setStatus(
-          spriteStatus,
-          "OPENROUTER_API_KEY is missing on the server. Add it to .env and restart.",
-          "error",
-        );
-      }
       store.set({
+        hasApiKey: health.hasApiKey,
         savedProjects: projects,
         imageModels: [...imageModelsResp.models],
         videoModels: [...videoModelsResp.models],
@@ -563,24 +667,51 @@ function renderShell(): string {
         <div class="columns">
 
           <section class="card">
-            <h2 class="card__title">1. Generate Reference Sprite</h2>
-            <div class="field">
-              <label class="field__label" for="sprite-prompt">Reference Sprite Prompt</label>
-              <textarea
-                id="sprite-prompt"
-                class="textarea"
-                placeholder="Describe the character or object…"
-                rows="3"
-              ></textarea>
+            <h2 class="card__title">1. Choose Reference Sprite</h2>
+            <div class="mode-switch" role="group" aria-label="Reference sprite acquisition method">
+              <button id="mode-generate" class="mode-switch__button is-active" type="button" aria-pressed="true">
+                Generate
+              </button>
+              <button id="mode-upload" class="mode-switch__button" type="button" aria-pressed="false">
+                Upload
+              </button>
             </div>
-            <div class="field">
-              <label class="field__label" for="sprite-model">Model</label>
-              <select id="sprite-model" class="select"></select>
+            <div id="generate-panel" class="acquisition-panel">
+              <div class="field">
+                <label class="field__label" for="sprite-prompt">Reference Sprite Prompt</label>
+                <textarea
+                  id="sprite-prompt"
+                  class="textarea"
+                  placeholder="Describe the character or object…"
+                  rows="3"
+                ></textarea>
+              </div>
+              <div class="field">
+                <label class="field__label" for="sprite-model">Model</label>
+                <select id="sprite-model" class="select"></select>
+              </div>
+              <button id="btn-generate-sprite" class="btn btn--primary btn--block" type="button">
+                ${sparkleIcon}
+                Generate Reference Sprite
+              </button>
             </div>
-            <button id="btn-generate-sprite" class="btn btn--primary btn--block" type="button">
-              ${sparkleIcon}
-              Generate Reference Sprite
-            </button>
+            <div id="upload-panel" class="acquisition-panel" hidden>
+              <label id="upload-dropzone" class="upload-dropzone" for="sprite-upload">
+                <input
+                  id="sprite-upload"
+                  class="visually-hidden"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                />
+                <span class="upload-dropzone__icon">${folderIcon}</span>
+                <span class="upload-dropzone__title">Drop an image here or choose a file</span>
+                <span class="upload-dropzone__hint">PNG, JPEG, or WebP · max 10 MB</span>
+                <span class="upload-dropzone__hint">Use a flat #00b140 background for best results.</span>
+              </label>
+            </div>
+            <div id="api-key-warning" class="status status--error" hidden>
+              OPENROUTER_API_KEY is missing. Upload still works without it.
+            </div>
             <div id="sprite-status" class="status"></div>
             <div class="preview">
               <div class="preview__label">Reference Sprite</div>
@@ -588,6 +719,9 @@ function renderShell(): string {
                 <span class="preview__placeholder">No sprite yet</span>
               </div>
               <div id="sprite-caption" class="preview__caption">—</div>
+              <div id="background-warning" class="background-warning" hidden>
+                Background may not key cleanly. Use a flat #00b140 background for best results.
+              </div>
             </div>
           </section>
 
