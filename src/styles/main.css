@@ -455,6 +455,12 @@ button {
   min-width: 0;
 }
 
+.geometry-hint {
+  margin-top: -2px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 .upload-dropzone {
   min-height: 190px;
   padding: 22px 16px;

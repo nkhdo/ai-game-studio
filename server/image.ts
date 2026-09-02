@@ -5,11 +5,17 @@ import { spawn } from "node:child_process";
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
 export const IMAGE_MODELS = [
-  { id: "openai/gpt-image-2", label: "OpenAI GPT Image 2", maxStyleGuideImages: 16 },
+  {
+    id: "openai/gpt-image-2",
+    label: "OpenAI GPT Image 2",
+    maxStyleGuideImages: 16,
+    sizeStrategy: "prompt-only",
+  },
   {
     id: "x-ai/grok-imagine-image-2.0",
     label: "xAI Grok Imagine Image 2.0",
     maxStyleGuideImages: 3,
+    sizeStrategy: "target-size",
   },
 ] as const;
 
@@ -32,6 +38,14 @@ const STYLE_GUIDE_DIRECTIVE =
   "Use all attached Style Guide Images collectively and without priority. " +
   "Borrow only their palette, linework, shading, texture, and proportions. " +
   "Do not copy their subjects, identities, clothing, text, poses, or composition.";
+
+function targetSizeDirective(size: { w: number; h: number }): string {
+  return (
+    `This image will be reduced to a final ${size.w} × ${size.h} pixel game sprite. ` +
+    "Use simple, clearly separated shapes, limited fine detail, crisp edges, and a readable " +
+    "silhouette so the subject remains legible after downscaling."
+  );
+}
 
 interface ImageGenerationResponse {
   data?: Array<{
@@ -145,7 +159,11 @@ export async function generateSpriteImage(
     : "";
   const styleDirective =
     styleGuideDataUrls.length > 0 ? `\n\n${STYLE_GUIDE_DIRECTIVE}` : "";
-  const fullPrompt = `${prompt.trim()}${styleDirective}\n\n${CHROMA_DIRECTIVE}${fillDirective}`;
+  const sizeDirective =
+    options.geometry && modelConfig.sizeStrategy === "prompt-only"
+      ? `\n\n${targetSizeDirective(options.geometry.size)}`
+      : "";
+  const fullPrompt = `${prompt.trim()}${styleDirective}\n\n${CHROMA_DIRECTIVE}${fillDirective}${sizeDirective}`;
 
   const res = await fetch(`${OPENROUTER_BASE}/images`, {
     method: "POST",
@@ -156,7 +174,7 @@ export async function generateSpriteImage(
     body: JSON.stringify({
       model,
       prompt: fullPrompt,
-      ...(options.geometry
+      ...(options.geometry && modelConfig.sizeStrategy === "target-size"
         ? { size: `${options.geometry.size.w}x${options.geometry.size.h}` }
         : {}),
       ...(styleGuideDataUrls.length > 0

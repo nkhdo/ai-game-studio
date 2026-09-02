@@ -38,6 +38,7 @@ export interface ImageModelOption {
   id: string;
   label: string;
   maxStyleGuideImages: number;
+  sizeStrategy: "target-size" | "prompt-only";
 }
 
 export interface AcquisitionGeometry {
