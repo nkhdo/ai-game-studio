@@ -62,6 +62,7 @@ export function mountApp(root: HTMLElement) {
   const targetSizeSelect = root.querySelector<HTMLSelectElement>("#target-size")!;
   const subjectFillSelect = root.querySelector<HTMLSelectElement>("#subject-fill")!;
   const colorCountSelect = root.querySelector<HTMLSelectElement>("#color-count")!;
+  const imageSizeStrategy = root.querySelector<HTMLDivElement>("#image-size-strategy")!;
   const styleGuideDropzone = root.querySelector<HTMLLabelElement>("#style-guide-dropzone")!;
   const styleGuideInput = root.querySelector<HTMLInputElement>("#style-guide-input")!;
   const styleGuideCount = root.querySelector<HTMLSpanElement>("#style-guide-count")!;
@@ -595,6 +596,15 @@ export function mountApp(root: HTMLElement) {
     );
     const incompatibleStyleGuides =
       state.styleGuides.length > 0 && state.styleGuides.length > styleGuideLimit;
+    const generateMode = state.spriteAcquisitionMode === "generate";
+
+    imageSizeStrategy.hidden = !generateMode || !selectedImageModel;
+    if (selectedImageModel) {
+      imageSizeStrategy.textContent =
+        selectedImageModel.sizeStrategy === "target-size"
+          ? `Generated directly at ${state.frameSize} × ${state.frameSize}.`
+          : `Generated at the model's native size, optimized and resized to ${state.frameSize} × ${state.frameSize}.`;
+    }
 
     generateSpriteBtn.disabled = busy || !state.hasApiKey || incompatibleStyleGuides;
     generateModeBtn.disabled = busy;
@@ -613,7 +623,6 @@ export function mountApp(root: HTMLElement) {
     saveBtn.disabled = busy;
     loadBtn.disabled = busy;
 
-    const generateMode = state.spriteAcquisitionMode === "generate";
     generatePanel.hidden = !generateMode;
     uploadPanel.hidden = generateMode;
     generateModeBtn.classList.toggle("is-active", generateMode);
@@ -955,6 +964,7 @@ function renderShell(): string {
                 </select>
               </div>
             </div>
+            <div id="image-size-strategy" class="geometry-hint" hidden></div>
             <div id="upload-panel" class="acquisition-panel" hidden>
               <label id="upload-dropzone" class="upload-dropzone" for="sprite-upload">
                 <input
