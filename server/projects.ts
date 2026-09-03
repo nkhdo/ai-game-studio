@@ -65,6 +65,7 @@ export interface ProjectView {
   subjectFillMeasured: number | null;
   frames: string[];
   selectedFrameIndices: number[];
+  sourceVideoUrl: string | null;
   spritesheetUrl: string | null;
   previewGifUrl: string | null;
   updatedAt: string;
@@ -169,6 +170,7 @@ export function toView(m: ProjectManifest): ProjectView {
     subjectFillMeasured: m.subjectFillMeasured ?? null,
     frames: m.frames.map((f) => base + f),
     selectedFrameIndices: m.selectedFrameIndices,
+    sourceVideoUrl: m.frames.length > 0 ? base + PROJECT_FILES.source : null,
     spritesheetUrl: m.spritesheet ? base + m.spritesheet : null,
     previewGifUrl: m.previewGif ? base + m.previewGif : null,
     updatedAt: m.updatedAt,

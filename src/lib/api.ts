@@ -17,6 +17,7 @@ export interface ProjectView {
   subjectFillMeasured: number | null;
   frames: string[];
   selectedFrameIndices: number[];
+  sourceVideoUrl: string | null;
   spritesheetUrl: string | null;
   previewGifUrl: string | null;
   updatedAt: string;
