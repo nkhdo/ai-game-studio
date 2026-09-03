@@ -46,6 +46,7 @@ export interface AppState {
   colorCount: number | null;
   subjectFillMeasured: number | null;
   frames: string[];
+  motionVideoSrc: string | null;
   selectedFrameIndices: Set<number>;
   spritesheetSrc: string | null;
   spritesheetCols: number | null;
@@ -80,6 +81,7 @@ export function createInitialState(): AppState {
     colorCount: DEFAULT_COLOR_COUNT,
     subjectFillMeasured: null,
     frames: [],
+    motionVideoSrc: null,
     selectedFrameIndices: new Set(),
     spritesheetSrc: null,
     spritesheetCols: null,
@@ -121,6 +123,7 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
     subjectFillMeasured: view.subjectFillMeasured ?? null,
     frames: view.frames.map((f) => cacheBust(f, v)!),
     selectedFrameIndices: new Set(view.selectedFrameIndices),
+    motionVideoSrc: cacheBust(view.sourceVideoUrl, v),
     spritesheetSrc: cacheBust(view.spritesheetUrl, v),
     spritesheetCols: view.spritesheetUrl ? view.selectedFrameIndices.length : null,
     previewGifSrc: cacheBust(view.previewGifUrl, v),

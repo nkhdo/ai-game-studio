@@ -77,6 +77,7 @@ export function mountApp(root: HTMLElement) {
   const generateFramesBtn = root.querySelector<HTMLButtonElement>("#btn-generate-frames")!;
   const framesGrid = root.querySelector<HTMLDivElement>("#frames-grid")!;
   const framesStatus = root.querySelector<HTMLDivElement>("#frames-status")!;
+  const motionVideoPreview = root.querySelector<HTMLDivElement>("#motion-video-preview")!;
   const generateSheetBtn = root.querySelector<HTMLButtonElement>("#btn-generate-sheet")!;
 
   const sheetPreview = root.querySelector<HTMLDivElement>("#sheet-preview")!;
@@ -366,6 +367,7 @@ export function mountApp(root: HTMLElement) {
       store.set({
         status: "done",
         frames: view.frames.map((f) => cacheBust(f, v)!),
+        motionVideoSrc: cacheBust(view.sourceVideoUrl, v),
         selectedFrameIndices: new Set(view.selectedFrameIndices),
         spritesheetSrc: null,
         spritesheetCols: null,
@@ -596,6 +598,7 @@ export function mountApp(root: HTMLElement) {
 
   let lastImageModelOptionsKey = "";
   let lastVideoModelOptionsKey = "";
+  let renderedMotionVideoSrc: string | null | undefined;
 
   // ---- Render reactivity ----
   store.subscribe((state) => {
@@ -710,6 +713,12 @@ export function mountApp(root: HTMLElement) {
       !state.spriteSrc || state.backgroundSuitability !== "warning";
 
     framesGrid.innerHTML = renderFramesGrid(state.frames, state.selectedFrameIndices);
+    if (state.motionVideoSrc !== renderedMotionVideoSrc) {
+      renderedMotionVideoSrc = state.motionVideoSrc;
+      motionVideoPreview.innerHTML = state.motionVideoSrc
+        ? `<video src="${escapeAttr(state.motionVideoSrc)}" aria-label="Generated movement video" controls loop playsinline preload="metadata">Your browser does not support video playback.</video>`
+        : `<span class="motion-video-preview__placeholder">Generate frames to preview the source video</span>`;
+    }
 
     const frameSizeValue = String(state.frameSize);
     if (targetSizeSelect.value !== frameSizeValue) targetSizeSelect.value = frameSizeValue;
@@ -1062,6 +1071,12 @@ function renderShell(): string {
             </div>
             <div id="video-model-guidance" class="geometry-hint"></div>
             <div id="frames-status" class="status"></div>
+            <div class="motion-video-section">
+              <div class="motion-video-section__label">Generated Video</div>
+              <div id="motion-video-preview" class="motion-video-preview">
+                <span class="motion-video-preview__placeholder">Generate frames to preview the source video</span>
+              </div>
+            </div>
             <div class="frames-section">
               <div class="frames-section__label">Select frames to include</div>
               <div id="frames-grid" class="frames-grid"></div>
