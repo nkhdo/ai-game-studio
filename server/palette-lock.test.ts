@@ -4,7 +4,11 @@ import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { extractSubjectPalette, remapFramesToPalette } from "./palette-lock.js";
+import {
+  conformToReferencePalette,
+  extractSubjectPalette,
+  remapFramesToPalette,
+} from "./palette-lock.js";
 
 function rawToPng(width: number, height: number, rgba: number[]): Promise<Buffer> {
   return sharp(Buffer.from(rgba), { raw: { width, height, channels: 4 } })
@@ -63,4 +67,28 @@ test("remaps off-palette pixels to the nearest palette color and preserves alpha
   assert.deepEqual([...data.slice(0, 4)], [255, 0, 0, 255]);
   assert.deepEqual([...data.slice(4, 8)], [255, 0, 0, 200]);
   assert.deepEqual([...data.slice(8, 12)], [0x00, 0xb1, 0x40, 0]);
+});
+
+test("conforms a generated sprite to the union palette of reference images, preserving chroma", async () => {
+  // Generated sprite: chroma background + off-palette orange subject
+  const generated = await rawToPng(2, 1, [
+    0x00, 0xb1, 0x40, 255,
+    250, 128, 0, 255,
+  ]);
+  // Two references: red in the first, blue in the second
+  const ref1 = await rawToPng(1, 1, [255, 0, 0, 255]);
+  const ref2 = await rawToPng(1, 1, [0, 0, 255, 255]);
+
+  const conformed = await conformToReferencePalette(generated, [ref1, ref2]);
+  const { data } = await sharp(conformed).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  // chroma background untouched
+  assert.deepEqual([...data.slice(0, 4)], [0x00, 0xb1, 0x40, 255]);
+  // orange → nearest of {red, blue} = red
+  assert.deepEqual([...data.slice(4, 8)], [255, 0, 0, 255]);
+});
+
+test("returns the image unchanged when no references participate", async () => {
+  const image = await rawToPng(1, 1, [250, 128, 0, 255]);
+  const conformed = await conformToReferencePalette(image, []);
+  assert.deepEqual([...(await sharp(conformed).raw().toBuffer())], [250, 128, 0, 255]);
 });

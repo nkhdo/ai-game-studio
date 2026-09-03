@@ -44,6 +44,10 @@ _Avoid_: Sprite colors, image palette
 A per-motion-generation option that constrains the colors of extracted Movement Frames to the Subject Palette. Prompt guidance asks the video model to reuse the Reference Sprite's colors, but only the deterministic color remap of extracted frames enforces the constraint. Frame transparency is never altered, and the remap never changes the alpha channel.
 _Avoid_: Color fixing, color correction, palette matching
 
+**Palette Conformance**:
+The deterministic remap applied automatically when a Reference Sprite is generated using reference images: the generated sprite's subject colors are constrained to the union palette of the reference images that participated in its acquisition (Style Guide Images, plus the uploaded Reference Sprite when style-matching). The chroma-green background is never remapped, and the alpha channel is never altered.
+_Avoid_: Color fixing, palette enforcement, reference color matching
+
 **Target Frame Size**:
 The requested pixel dimensions of the Reference Sprite. Acquisition guarantees the stored Reference Sprite exactly matches it, rescaling the image and extending the chroma-green background as needed rather than distorting the subject.
 The acquired value is also authoritative for extracted Movement Frames, spritesheet cells, and the animated preview. A later change to the acquisition controls remains a draft until another Reference Sprite is acquired. Video providers may receive an in-memory nearest-neighbor enlargement when their registry entry declares a larger minimum input; this transport copy is never persisted.
