@@ -610,6 +610,19 @@ button {
   background: #f9fafb;
 }
 
+.btn--link {
+  background: none;
+  border-color: transparent;
+  color: var(--primary);
+  padding: 0;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.btn--link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
 .btn--block {
   width: 100%;
 }
@@ -723,6 +736,19 @@ button {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.frames-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.frames-section__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .frames-section__label {

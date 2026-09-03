@@ -76,6 +76,8 @@ export function mountApp(root: HTMLElement) {
   const videoModelGuidance = root.querySelector<HTMLDivElement>("#video-model-guidance")!;
   const generateFramesBtn = root.querySelector<HTMLButtonElement>("#btn-generate-frames")!;
   const framesGrid = root.querySelector<HTMLDivElement>("#frames-grid")!;
+  const selectAllFramesBtn = root.querySelector<HTMLButtonElement>("#btn-select-all-frames")!;
+  const deselectAllFramesBtn = root.querySelector<HTMLButtonElement>("#btn-deselect-all-frames")!;
   const framesStatus = root.querySelector<HTMLDivElement>("#frames-status")!;
   const motionVideoPreview = root.querySelector<HTMLDivElement>("#motion-video-preview")!;
   const generateSheetBtn = root.querySelector<HTMLButtonElement>("#btn-generate-sheet")!;
@@ -399,6 +401,21 @@ export function mountApp(root: HTMLElement) {
     scheduleSelectionPersist();
   });
 
+  selectAllFramesBtn.addEventListener("click", () => {
+    const state = store.get();
+    if (state.frames.length === 0) return;
+    store.set({
+      selectedFrameIndices: new Set(state.frames.map((_, i) => i)),
+    });
+    scheduleSelectionPersist();
+  });
+
+  deselectAllFramesBtn.addEventListener("click", () => {
+    if (store.get().selectedFrameIndices.size === 0) return;
+    store.set({ selectedFrameIndices: new Set<number>() });
+    scheduleSelectionPersist();
+  });
+
   generateSheetBtn.addEventListener("click", async () => {
     const state = store.get();
     const selected = [...state.selectedFrameIndices]
@@ -661,6 +678,9 @@ export function mountApp(root: HTMLElement) {
     colorCountSelect.disabled = busy;
     generateFramesBtn.disabled = busy || !state.spriteSrc;
     generateSheetBtn.disabled = busy || state.frames.length === 0;
+    selectAllFramesBtn.disabled =
+      busy || state.selectedFrameIndices.size === state.frames.length;
+    deselectAllFramesBtn.disabled = busy || state.selectedFrameIndices.size === 0;
     exportBtn.disabled = !state.spritesheetSrc;
     newBtn.disabled = busy;
     saveBtn.disabled = busy;
@@ -1078,7 +1098,17 @@ function renderShell(): string {
               </div>
             </div>
             <div class="frames-section">
-              <div class="frames-section__label">Select frames to include</div>
+              <div class="frames-section__header">
+                <div class="frames-section__label">Select frames to include</div>
+                <div class="frames-section__actions">
+                  <button id="btn-select-all-frames" class="btn btn--link btn--sm" type="button">
+                    Select All
+                  </button>
+                  <button id="btn-deselect-all-frames" class="btn btn--link btn--sm" type="button">
+                    Deselect All
+                  </button>
+                </div>
+              </div>
               <div id="frames-grid" class="frames-grid"></div>
             </div>
             <button id="btn-generate-sheet" class="btn btn--primary btn--block btn--lg" type="button">
