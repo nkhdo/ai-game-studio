@@ -4,7 +4,7 @@ export interface ProjectView {
   spriteModel: string;
   styleGuides: StyleGuideImageView[];
   styleGuidesChanged: boolean;
-  styleMatchReference: boolean;
+  spritePaletteLock: boolean;
   spriteAcquisition: "generated" | "uploaded" | null;
   spriteOriginalFilename: string | null;
   backgroundSuitability: "suitable" | "warning" | "unknown";
@@ -114,7 +114,7 @@ export function generateSprite(
   prompt: string,
   model?: string,
   geometry?: AcquisitionGeometry,
-  styleMatchReference?: boolean,
+  spritePaletteLock?: boolean,
 ): Promise<GenerateSpriteResponse> {
   return postJson("/api/sprites/generate", {
     prompt,
@@ -122,7 +122,7 @@ export function generateSprite(
     frameSize: geometry?.frameSize,
     subjectFillPct: geometry?.subjectFillPct,
     colorCount: geometry?.colorCount ?? null,
-    styleMatchReference: styleMatchReference === true,
+    spritePaletteLock: spritePaletteLock === true,
   });
 }
 
