@@ -59,6 +59,7 @@ import {
   applyTargetGeometry,
   parseTargetGeometry,
 } from "./reference-sprite.js";
+import { conformToReferencePalette, dataUrlToBuffer } from "./palette-lock.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const HAS_KEY = Boolean(process.env.OPENROUTER_API_KEY);
@@ -267,7 +268,15 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
         `Generation with Style Guide Images ${filenames.join(", ")} failed: ${message}`,
       );
     }
-    const normalized = await normalizeReferenceImage(Buffer.from(generatedBase64, "base64"));
+    const referenceBuffers = [
+      ...styleGuideDataUrls.map(dataUrlToBuffer),
+      ...(referenceDataUrl ? [dataUrlToBuffer(referenceDataUrl)] : []),
+    ];
+    const conformed = await conformToReferencePalette(
+      Buffer.from(generatedBase64, "base64"),
+      referenceBuffers,
+    );
+    const normalized = await normalizeReferenceImage(conformed);
     const applied = await applyTargetGeometry(normalized.buffer, geometry);
     const base64 = applied.buffer.toString("base64");
 
