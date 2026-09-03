@@ -20,7 +20,7 @@ test("registers the Seedance 2.0 Mini and Seedance 2.5 video models", () => {
         label: "Seedance 2.0 Mini",
         defaultDuration: 4,
         inputMode: "first-frame",
-        minInputWidth: null,
+        minInputWidth: 300,
         minInputHeight: null,
         inputResizeKernel: "nearest",
         constraintNote: null,
@@ -30,7 +30,7 @@ test("registers the Seedance 2.0 Mini and Seedance 2.5 video models", () => {
         label: "Seedance 2.5",
         defaultDuration: 4,
         inputMode: "first-frame",
-        minInputWidth: null,
+        minInputWidth: 300,
         minInputHeight: null,
         inputResizeKernel: "nearest",
         constraintNote: null,
@@ -40,15 +40,19 @@ test("registers the Seedance 2.0 Mini and Seedance 2.5 video models", () => {
 });
 
 test("records known input constraints without inventing unknown ones", () => {
-  const grok = VIDEO_MODELS.find(({ id }) => id === "x-ai/grok-imagine-video")!;
-  assert.equal(grok.minInputWidth, 300);
-  assert.equal(grok.minInputHeight, null);
-  assert.match(grok.constraintNote ?? "", /observed provider rejection/i);
+  const constrainedWidths: Record<string, number> = {
+    "x-ai/grok-imagine-video": 300,
+    "bytedance/seedance-2.0-mini": 300,
+    "bytedance/seedance-2.5": 300,
+  };
 
-  for (const model of VIDEO_MODELS.filter(({ id }) => id !== grok.id)) {
-    assert.equal(model.minInputWidth, null);
+  for (const model of VIDEO_MODELS) {
+    assert.equal(model.minInputWidth, constrainedWidths[model.id] ?? null);
     assert.equal(model.minInputHeight, null);
   }
+
+  const grok = VIDEO_MODELS.find(({ id }) => id === "x-ai/grok-imagine-video")!;
+  assert.match(grok.constraintNote ?? "", /observed provider rejection/i);
 });
 
 test("enlarges an undersized video input by the smallest integer multiple", async () => {
