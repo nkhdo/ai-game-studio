@@ -30,6 +30,7 @@ export interface ProjectManifest {
   backgroundSuitability: BackgroundSuitability;
   motionPrompt: string;
   motionModel: string;
+  paletteLock: boolean;
   sprite: string | null;
   spriteDimensions: { w: number; h: number } | null;
   targetFrameSize: { w: number; h: number } | null;
@@ -58,6 +59,7 @@ export interface ProjectView {
   backgroundSuitability: BackgroundSuitability;
   motionPrompt: string;
   motionModel: string;
+  paletteLock: boolean;
   spriteUrl: string | null;
   spriteDimensions: { w: number; h: number } | null;
   targetFrameSize: { w: number; h: number } | null;
@@ -86,6 +88,7 @@ export function emptyManifest(name = "latest"): ProjectManifest {
     backgroundSuitability: "unknown",
     motionPrompt: "",
     motionModel: "x-ai/grok-imagine-video",
+    paletteLock: false,
     sprite: null,
     spriteDimensions: null,
     targetFrameSize: null,
@@ -164,6 +167,7 @@ export function toView(m: ProjectManifest): ProjectView {
     backgroundSuitability: m.backgroundSuitability,
     motionPrompt: m.motionPrompt,
     motionModel: m.motionModel,
+    paletteLock: m.paletteLock,
     spriteUrl: m.sprite ? base + m.sprite : null,
     spriteDimensions: m.spriteDimensions,
     targetFrameSize: m.targetFrameSize ?? null,

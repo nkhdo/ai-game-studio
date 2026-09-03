@@ -10,6 +10,7 @@ export interface ProjectView {
   backgroundSuitability: "suitable" | "warning" | "unknown";
   motionPrompt: string;
   motionModel: string;
+  paletteLock: boolean;
   spriteUrl: string | null;
   spriteDimensions: { w: number; h: number } | null;
   targetFrameSize: { w: number; h: number } | null;
@@ -170,8 +171,9 @@ export function discardSpriteUpload(): Promise<{ ok: boolean }> {
 export function animateSprite(
   text: string,
   model?: string,
+  paletteLock?: boolean,
 ): Promise<ProjectView> {
-  return postJson("/api/sprites/animate", { text, model });
+  return postJson("/api/sprites/animate", { text, model, paletteLock });
 }
 
 export function getVideoModels(): Promise<VideoModelsResponse> {

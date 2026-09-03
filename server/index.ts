@@ -353,6 +353,7 @@ app.post("/api/sprites/animate", requireKey, async (req, res) => {
     const model = isVideoModelId(req.body?.model) ? req.body.model : DEFAULT_VIDEO_MODEL;
     const duration =
       typeof req.body?.duration === "number" ? req.body.duration : defaultDurationFor(model);
+    const paletteLock = req.body?.paletteLock === true;
 
     const current = await readManifest("latest");
     if (!current.sprite || !current.targetFrameSize) {
@@ -367,23 +368,35 @@ app.post("/api/sprites/animate", requireKey, async (req, res) => {
     const spriteAbs = path.join(LATEST_DIR, current.sprite);
     ensureInsideRoot(spriteAbs);
     if (!existsSync(spriteAbs)) throw new Error("Reference Sprite not found on disk");
-    const imageInput = await normalizeVideoInput(await readFile(spriteAbs), model);
+    const spriteBuffer = await readFile(spriteAbs);
+    const imageInput = await normalizeVideoInput(spriteBuffer, model);
 
     await wipeLatestSpritesheet();
 
-    const video = await generateSpriteMotionVideo(imageInput.dataUrl, text, duration, model);
+    const video = await generateSpriteMotionVideo(
+      imageInput.dataUrl,
+      text,
+      duration,
+      model,
+      paletteLock,
+    );
     const videoAbs = path.join(LATEST_DIR, PROJECT_FILES.source);
     await downloadVideo(video.url, videoAbs, video.headers);
 
     const framesAbs = path.join(LATEST_DIR, PROJECT_FILES.framesDir);
-    const frameFiles = await extractFrames(videoAbs, framesAbs, current.targetFrameSize.w);
+    const frameFiles = await extractFrames(
+      videoAbs,
+      framesAbs,
+      current.targetFrameSize.w,
+      paletteLock ? { referenceSprite: spriteBuffer } : {},
+    );
     const frames = frameFiles.map((f) => `${PROJECT_FILES.framesDir}/${f}`);
 
     const m = await updateLatest({
       motionPrompt: text,
       motionModel: model,
       frames,
-      selectedFrameIndices: frames.map((_, i) => i),
+      paletteLock,
       spritesheet: null,
       previewGif: null,
     });

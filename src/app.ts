@@ -76,6 +76,7 @@ export function mountApp(root: HTMLElement) {
   const motionInput = root.querySelector<HTMLTextAreaElement>("#motion-prompt")!;
   const motionModelSelect = root.querySelector<HTMLSelectElement>("#motion-model")!;
   const videoModelGuidance = root.querySelector<HTMLDivElement>("#video-model-guidance")!;
+  const paletteLockInput = root.querySelector<HTMLInputElement>("#palette-lock")!;
   const generateFramesBtn = root.querySelector<HTMLButtonElement>("#btn-generate-frames")!;
   const framesGrid = root.querySelector<HTMLDivElement>("#frames-grid")!;
   const selectAllFramesBtn = root.querySelector<HTMLButtonElement>("#btn-select-all-frames")!;
@@ -307,6 +308,9 @@ export function mountApp(root: HTMLElement) {
   motionModelSelect.addEventListener("change", () => {
     store.set({ motionModel: motionModelSelect.value });
   });
+  paletteLockInput.addEventListener("change", () => {
+    store.set({ paletteLock: paletteLockInput.checked });
+  });
 
   generateSpriteBtn.addEventListener("click", async () => {
     const prompt = store.get().spritePrompt.trim();
@@ -370,7 +374,7 @@ export function mountApp(root: HTMLElement) {
         : `${spinner()}Generating motion video…`,
     );
     try {
-      const view = await animateSprite(text, state.motionModel);
+      const view = await animateSprite(text, state.motionModel, state.paletteLock);
       const v = view.updatedAt;
       store.set({
         status: "done",
@@ -703,6 +707,8 @@ export function mountApp(root: HTMLElement) {
     styleMatchRow.hidden = !generateMode || state.spriteAcquisition !== "uploaded";
     styleMatchInput.disabled = busy;
     styleMatchInput.checked = state.styleMatchReference;
+    paletteLockInput.disabled = busy;
+    paletteLockInput.checked = state.paletteLock;
     styleGuideCount.textContent = `${state.styleGuides.length}/${MAX_STYLE_GUIDE_IMAGES}`;
     styleGuideList.innerHTML = renderStyleGuideImages(state.styleGuides, busy);
     styleGuidesInactive.hidden = state.styleGuides.length === 0;
@@ -1110,6 +1116,13 @@ function renderShell(): string {
                 Generate Frames
               </button>
             </div>
+            <label class="style-match-row" for="palette-lock">
+              <input id="palette-lock" class="style-match-row__input" type="checkbox" />
+              <span class="style-match-row__text">
+                <span class="style-match-row__title">Palette Lock</span>
+                <span class="style-match-row__hint">Restrict frame colors to the Reference Sprite's palette</span>
+              </span>
+            </label>
             <div id="video-model-guidance" class="geometry-hint"></div>
             <div id="frames-status" class="status"></div>
             <div class="motion-video-section">
