@@ -24,6 +24,7 @@ export interface ProjectManifest {
   styleGuideImages: StyleGuideImage[];
   styleGuideSelection: string[];
   appliedStyleGuideSet: string[];
+  styleMatchReference: boolean;
   spriteAcquisition: SpriteAcquisition | null;
   spriteOriginalFilename: string | null;
   backgroundSuitability: BackgroundSuitability;
@@ -53,7 +54,7 @@ export interface ProjectView {
   }>;
   styleGuidesChanged: boolean;
   spriteAcquisition: SpriteAcquisition | null;
-  spriteOriginalFilename: string | null;
+  styleMatchReference: boolean;
   backgroundSuitability: BackgroundSuitability;
   motionPrompt: string;
   motionModel: string;
@@ -79,6 +80,7 @@ export function emptyManifest(name = "latest"): ProjectManifest {
     styleGuideImages: [],
     styleGuideSelection: [],
     appliedStyleGuideSet: [],
+    styleMatchReference: false,
     spriteAcquisition: null,
     spriteOriginalFilename: null,
     backgroundSuitability: "unknown",
@@ -158,7 +160,7 @@ export function toView(m: ProjectManifest): ProjectView {
       m.styleGuideSelection.length !== m.appliedStyleGuideSet.length ||
       m.styleGuideSelection.some((id) => !m.appliedStyleGuideSet.includes(id)),
     spriteAcquisition: m.spriteAcquisition,
-    spriteOriginalFilename: m.spriteOriginalFilename,
+    styleMatchReference: m.styleMatchReference,
     backgroundSuitability: m.backgroundSuitability,
     motionPrompt: m.motionPrompt,
     motionModel: m.motionModel,

@@ -39,6 +39,11 @@ const STYLE_GUIDE_DIRECTIVE =
   "Borrow only their palette, linework, shading, texture, and proportions. " +
   "Do not copy their subjects, identities, clothing, text, poses, or composition.";
 
+const REFERENCE_STYLE_DIRECTIVE =
+  "The first attached image is the Reference Sprite. Copy its color palette, " +
+  "outline weight, level of detail, and shading style. Do not copy its subject, " +
+  "identity, composition, or pose.";
+
 function targetSizeDirective(size: { w: number; h: number }): string {
   return (
     `This image will be reduced to a final ${size.w} × ${size.h} pixel game sprite. ` +
@@ -58,6 +63,7 @@ interface ImageGenerationResponse {
 export interface SpriteImageGenerationOptions {
   geometry?: { size: { w: number; h: number }; subjectFillPct: number };
   styleGuideDataUrls?: readonly string[];
+  referenceDataUrl?: string;
 }
 
 function isPng(buffer: Buffer): boolean {
@@ -148,10 +154,17 @@ export async function generateSpriteImage(
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
 
   const styleGuideDataUrls = options.styleGuideDataUrls ?? [];
+  const referenceDataUrl = options.referenceDataUrl ?? null;
   const modelConfig = IMAGE_MODELS.find((candidate) => candidate.id === model)!;
   if (styleGuideDataUrls.length > modelConfig.maxStyleGuideImages) {
     throw new Error(
       `${modelConfig.label} supports up to ${modelConfig.maxStyleGuideImages} Style Guide Images`,
+    );
+  }
+  if (referenceDataUrl && styleGuideDataUrls.length + 1 > modelConfig.maxStyleGuideImages) {
+    throw new Error(
+      `${modelConfig.label} supports up to ${modelConfig.maxStyleGuideImages} reference ` +
+        "images in total, including the Reference Sprite used for style matching",
     );
   }
   const fillDirective = options.geometry
@@ -159,11 +172,12 @@ export async function generateSpriteImage(
     : "";
   const styleDirective =
     styleGuideDataUrls.length > 0 ? `\n\n${STYLE_GUIDE_DIRECTIVE}` : "";
+  const referenceDirective = referenceDataUrl ? `\n\n${REFERENCE_STYLE_DIRECTIVE}` : "";
   const sizeDirective =
     options.geometry && modelConfig.sizeStrategy === "prompt-only"
       ? `\n\n${targetSizeDirective(options.geometry.size)}`
       : "";
-  const fullPrompt = `${prompt.trim()}${styleDirective}\n\n${CHROMA_DIRECTIVE}${fillDirective}${sizeDirective}`;
+  const fullPrompt = `${prompt.trim()}${referenceDirective}${styleDirective}\n\n${CHROMA_DIRECTIVE}${fillDirective}${sizeDirective}`;
 
   const res = await fetch(`${OPENROUTER_BASE}/images`, {
     method: "POST",
@@ -177,12 +191,17 @@ export async function generateSpriteImage(
       ...(options.geometry && modelConfig.sizeStrategy === "target-size"
         ? { size: `${options.geometry.size.w}x${options.geometry.size.h}` }
         : {}),
-      ...(styleGuideDataUrls.length > 0
+      ...(referenceDataUrl || styleGuideDataUrls.length > 0
         ? {
-            input_references: styleGuideDataUrls.map((url) => ({
-              type: "image_url",
-              image_url: { url },
-            })),
+            input_references: [
+              ...(referenceDataUrl
+                ? [{ type: "image_url", image_url: { url: referenceDataUrl } }]
+                : []),
+              ...styleGuideDataUrls.map((url) => ({
+                type: "image_url",
+                image_url: { url },
+              })),
+            ],
           }
         : {}),
     }),

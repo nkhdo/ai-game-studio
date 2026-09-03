@@ -29,6 +29,7 @@ export interface AppState {
   spriteModel: string;
   styleGuides: StyleGuideImageView[];
   styleGuidesChanged: boolean;
+  styleMatchReference: boolean;
   spriteAcquisitionMode: "generate" | "upload";
   spriteAcquisition: "generated" | "uploaded" | null;
   spriteOriginalFilename: string | null;
@@ -64,6 +65,7 @@ export function createInitialState(): AppState {
     spriteModel: DEFAULT_IMAGE_MODEL,
     styleGuides: [],
     styleGuidesChanged: false,
+    styleMatchReference: false,
     spriteAcquisitionMode: "generate",
     spriteAcquisition: null,
     spriteOriginalFilename: null,
@@ -108,6 +110,7 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
       url: cacheBust(guide.url, v)!,
     })),
     styleGuidesChanged: view.styleGuidesChanged,
+    styleMatchReference: view.styleMatchReference ?? false,
     spriteAcquisitionMode: view.spriteAcquisition === "uploaded" ? "upload" : "generate",
     spriteAcquisition: view.spriteAcquisition,
     spriteOriginalFilename: view.spriteOriginalFilename,
