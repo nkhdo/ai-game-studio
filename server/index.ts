@@ -21,6 +21,7 @@ import {
   defaultDurationFor,
   generateSpriteMotionVideo,
   isVideoModelId,
+  normalizeVideoInput,
 } from "./video.js";
 import { extractFrames } from "./extract-frames.js";
 import { buildPreviewGif } from "./build-gif.js";
@@ -28,7 +29,6 @@ import {
   LATEST_DIR,
   PROJECTS_DIR,
   PROJECT_FILES,
-  ROOT_DIR,
   downloadVideo,
   ensureInsideRoot,
   readPngDims,
@@ -51,6 +51,7 @@ import {
 import { rm } from "node:fs/promises";
 import {
   DEFAULT_TARGET_FRAME_SIZE,
+  TARGET_FRAME_SIZES,
   commitReferenceUpload,
   discardPreparedUpload,
   normalizeReferenceImage,
@@ -86,14 +87,6 @@ function asString(v: unknown, name: string, max = 2_000): string {
   }
   if (v.length > max) throw new Error(`${name} is too long`);
   return v.trim();
-}
-
-function asImageRef(v: unknown): string {
-  if (typeof v !== "string" || v.length === 0) {
-    throw new Error("image is required");
-  }
-  if (v.length > 50_000_000) throw new Error("image is too large");
-  return v;
 }
 
 app.get("/api/health", (_req, res) => {
@@ -339,22 +332,34 @@ app.post("/api/sprites/upload/discard", async (_req, res) => {
 
 app.post("/api/sprites/animate", requireKey, async (req, res) => {
   try {
-    const image = asImageRef(req.body?.image);
     const text = asString(req.body?.text, "text");
     const model = isVideoModelId(req.body?.model) ? req.body.model : DEFAULT_VIDEO_MODEL;
     const duration =
       typeof req.body?.duration === "number" ? req.body.duration : defaultDurationFor(model);
 
-    const imageInput = await resolveImageInput(image);
+    const current = await readManifest("latest");
+    if (!current.sprite || !current.targetFrameSize) {
+      throw new Error("current Reference Sprite is missing applied target geometry");
+    }
+    if (
+      current.targetFrameSize.w !== current.targetFrameSize.h ||
+      !(TARGET_FRAME_SIZES as readonly number[]).includes(current.targetFrameSize.w)
+    ) {
+      throw new Error("current Reference Sprite has invalid applied target geometry");
+    }
+    const spriteAbs = path.join(LATEST_DIR, current.sprite);
+    ensureInsideRoot(spriteAbs);
+    if (!existsSync(spriteAbs)) throw new Error("Reference Sprite not found on disk");
+    const imageInput = await normalizeVideoInput(await readFile(spriteAbs), model);
 
     await wipeLatestSpritesheet();
 
-    const video = await generateSpriteMotionVideo(imageInput, text, duration, model);
+    const video = await generateSpriteMotionVideo(imageInput.dataUrl, text, duration, model);
     const videoAbs = path.join(LATEST_DIR, PROJECT_FILES.source);
     await downloadVideo(video.url, videoAbs, video.headers);
 
     const framesAbs = path.join(LATEST_DIR, PROJECT_FILES.framesDir);
-    const frameFiles = await extractFrames(videoAbs, framesAbs);
+    const frameFiles = await extractFrames(videoAbs, framesAbs, current.targetFrameSize.w);
     const frames = frameFiles.map((f) => `${PROJECT_FILES.framesDir}/${f}`);
 
     const m = await updateLatest({
@@ -372,20 +377,6 @@ app.post("/api/sprites/animate", requireKey, async (req, res) => {
   }
 });
 
-async function resolveImageInput(image: string): Promise<string> {
-  if (image.startsWith("data:")) return image;
-  if (image.startsWith("/projects/")) {
-    const cleanPath = image.split("?")[0];
-    const abs = path.join(ROOT_DIR, cleanPath.replace(/^\//, ""));
-    ensureInsideRoot(abs);
-    if (!existsSync(abs)) throw new Error("sprite image not found on disk");
-    const buf = await readFile(abs);
-    return `data:image/png;base64,${buf.toString("base64")}`;
-  }
-  if (/^https?:\/\//.test(image)) return image;
-  throw new Error("unsupported image reference");
-}
-
 function handleError(err: unknown, res: Response) {
   const message =
     err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE"
@@ -395,7 +386,11 @@ function handleError(err: unknown, res: Response) {
         : "Unknown error";
   const safe = redact(message);
   console.error("[api error]", safe);
-  res.status(400).json({ error: safe });
+  const maxClientErrorLength = 8_000;
+  const clientMessage = safe.length > maxClientErrorLength
+    ? `${safe.slice(0, maxClientErrorLength)}… [truncated]`
+    : safe;
+  res.status(400).json({ error: clientMessage });
 }
 
 function redact(msg: string): string {

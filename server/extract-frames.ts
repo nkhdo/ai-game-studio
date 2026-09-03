@@ -7,6 +7,7 @@ import { ROOT_DIR, ensureInsideRoot } from "./files.js";
 export async function extractFrames(
   inputMp4: string,
   outputDir: string,
+  frameSize: number,
 ): Promise<string[]> {
   ensureInsideRoot(inputMp4);
   ensureInsideRoot(outputDir);
@@ -26,7 +27,7 @@ export async function extractFrames(
   const scriptPath = path.join(ROOT_DIR, "scripts", "extract-frames.sh");
 
   await new Promise<void>((resolve, reject) => {
-    const child = spawn("bash", [scriptPath, inputMp4, outputDir], {
+    const child = spawn("bash", [scriptPath, inputMp4, outputDir, String(frameSize)], {
       stdio: "inherit",
     });
     child.on("error", reject);

@@ -68,6 +68,7 @@ Tips:
 - Keep motion prompts focused on the action. Phrases like *"no camera movement"*, *"side-view"*, and *"no head tilting"* help keep frames game-ready.
 - Switching the image model is one entry in `server/image.ts` — see `IMAGE_MODELS`.
 - Per-model default durations: Grok Imagine Video = 2 s, MiniMax H3 = 5 s, Seedance 2.0 = 4 s. ~24–30 fps on the source clip, so trim with the frame selector before composing.
+- Video models use the Reference Sprite as an exact first frame. Model-specific minimum input dimensions live in the server registry; undersized sprites are enlarged in memory by the smallest valid integer multiple and the stored Reference Sprite is left untouched. Extracted frames are contain-fitted and transparently padded to the acquired Target Frame Size.
 - Switching the model is one entry in `server/video.ts` — see `VIDEO_MODELS`.
 - Recommend sticking to Grok Imagine Video since it's much cheaper than Seedance 2
 

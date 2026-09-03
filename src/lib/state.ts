@@ -41,6 +41,7 @@ export interface AppState {
   spriteSrc: string | null;
   spriteDimensions: { w: number; h: number } | null;
   frameSize: number;
+  appliedFrameSize: number | null;
   subjectFillPct: number;
   colorCount: number | null;
   subjectFillMeasured: number | null;
@@ -74,6 +75,7 @@ export function createInitialState(): AppState {
     spriteSrc: null,
     spriteDimensions: null,
     frameSize: DEFAULT_TARGET_FRAME_SIZE,
+    appliedFrameSize: null,
     subjectFillPct: DEFAULT_SUBJECT_FILL_PCT,
     colorCount: DEFAULT_COLOR_COUNT,
     subjectFillMeasured: null,
@@ -113,6 +115,7 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
     spriteSrc: cacheBust(view.spriteUrl, v),
     spriteDimensions: view.spriteDimensions,
     frameSize: view.targetFrameSize?.w ?? DEFAULT_TARGET_FRAME_SIZE,
+    appliedFrameSize: view.targetFrameSize?.w ?? null,
     subjectFillPct: view.subjectFillPct ?? DEFAULT_SUBJECT_FILL_PCT,
     colorCount: view.targetFrameSize ? view.colorCount : DEFAULT_COLOR_COUNT,
     subjectFillMeasured: view.subjectFillMeasured ?? null,
