@@ -9,7 +9,7 @@ mkdir -p "$dir"
 
 ffmpeg -hide_banner -y \
   -i "$in" \
-  -vf "chromakey=0x00b140:0.15:0.08,scale=$size:$size:force_original_aspect_ratio=decrease:flags=neighbor,pad=$size:$size:(ow-iw)/2:(oh-ih)/2:color=black@0,format=rgba" \
+  -vf "chromakey=0x00b140:0.15:0.02,scale=$size:$size:force_original_aspect_ratio=decrease:flags=neighbor,pad=$size:$size:(ow-iw)/2:(oh-ih)/2:color=black@0,format=rgba" \
   -start_number 1 \
   "$dir/frame-%05d.png"
 
