@@ -52,6 +52,8 @@ export function mountApp(root: HTMLElement) {
   const uploadDropzone = root.querySelector<HTMLLabelElement>("#upload-dropzone")!;
   const uploadInput = root.querySelector<HTMLInputElement>("#sprite-upload")!;
   const spriteModelSelect = root.querySelector<HTMLSelectElement>("#sprite-model")!;
+  const styleMatchRow = root.querySelector<HTMLLabelElement>("#style-match-row")!;
+  const styleMatchInput = root.querySelector<HTMLInputElement>("#style-match")!;
   const generateSpriteBtn = root.querySelector<HTMLButtonElement>("#btn-generate-sprite")!;
   const spritePreview = root.querySelector<HTMLDivElement>("#sprite-preview")!;
   const spriteCaption = root.querySelector<HTMLDivElement>("#sprite-caption")!;
@@ -100,6 +102,10 @@ export function mountApp(root: HTMLElement) {
 
   spriteModelSelect.addEventListener("change", () => {
     store.set({ spriteModel: spriteModelSelect.value });
+  });
+
+  styleMatchInput.addEventListener("change", () => {
+    store.set({ styleMatchReference: styleMatchInput.checked });
   });
 
   generateModeBtn.addEventListener("click", () => {
@@ -316,7 +322,7 @@ export function mountApp(root: HTMLElement) {
         frameSize: state.frameSize,
         subjectFillPct: state.subjectFillPct,
         colorCount: state.colorCount,
-      });
+      }, state.styleMatchReference);
       const img = await loadImage(result.dataUrl);
       const patch = hydrateFromView(result.view);
       store.set({
@@ -632,13 +638,14 @@ export function mountApp(root: HTMLElement) {
     const selectedVideoModel = state.videoModels.find(
       (model) => model.id === state.motionModel,
     );
-    const styleGuideLimit = Math.min(
-      MAX_STYLE_GUIDE_IMAGES,
-      selectedImageModel?.maxStyleGuideImages ?? 0,
-    );
+    const generateMode = state.spriteAcquisitionMode === "generate";
+    const referenceUsed =
+      generateMode && state.spriteAcquisition === "uploaded" && state.styleMatchReference;
+    const styleGuideLimit =
+      Math.min(MAX_STYLE_GUIDE_IMAGES, selectedImageModel?.maxStyleGuideImages ?? 0) -
+      (referenceUsed ? 1 : 0);
     const incompatibleStyleGuides =
       state.styleGuides.length > 0 && state.styleGuides.length > styleGuideLimit;
-    const generateMode = state.spriteAcquisitionMode === "generate";
 
     imageSizeStrategy.hidden = !generateMode || !selectedImageModel;
     if (selectedImageModel) {
@@ -693,14 +700,18 @@ export function mountApp(root: HTMLElement) {
     generateModeBtn.setAttribute("aria-pressed", String(generateMode));
     uploadModeBtn.setAttribute("aria-pressed", String(!generateMode));
     apiKeyWarning.hidden = state.hasApiKey || !generateMode;
-
+    styleMatchRow.hidden = !generateMode || state.spriteAcquisition !== "uploaded";
+    styleMatchInput.disabled = busy;
+    styleMatchInput.checked = state.styleMatchReference;
     styleGuideCount.textContent = `${state.styleGuides.length}/${MAX_STYLE_GUIDE_IMAGES}`;
     styleGuideList.innerHTML = renderStyleGuideImages(state.styleGuides, busy);
     styleGuidesInactive.hidden = state.styleGuides.length === 0;
     if (incompatibleStyleGuides) {
       setStatus(
         styleGuideNotice,
-        `${escapeHtml(selectedImageModel?.label ?? "This model")} supports fewer Style Guide Images. Remove guides or choose a compatible model.`,
+        referenceUsed
+          ? `${escapeHtml(selectedImageModel?.label ?? "This model")} supports fewer Style Guide Images while Match reference style is on. Remove guides, disable the match, or choose a compatible model.`
+          : `${escapeHtml(selectedImageModel?.label ?? "This model")} supports fewer Style Guide Images. Remove guides or choose a compatible model.`,
         "error",
       );
     } else if (
@@ -998,6 +1009,16 @@ function renderShell(): string {
                 <label class="field__label" for="sprite-model">Model</label>
                 <select id="sprite-model" class="select"></select>
               </div>
+              <label id="style-match-row" class="style-match-row" hidden>
+                <input id="style-match" class="style-match-row__input" type="checkbox" checked />
+                <span class="style-match-row__text">
+                  <span class="style-match-row__title">Match reference style</span>
+                  <span class="style-match-row__hint"
+                    >Borrow palette, outline, detail, and shading from the uploaded
+                    reference.</span
+                  >
+                </span>
+              </label>
               <button id="btn-generate-sprite" class="btn btn--primary btn--block" type="button">
                 ${sparkleIcon}
                 Generate Reference Sprite

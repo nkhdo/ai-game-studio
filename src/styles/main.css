@@ -455,6 +455,39 @@ button {
   min-width: 0;
 }
 
+.style-match-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.style-match-row__input {
+  margin: 2px 0 0;
+  accent-color: var(--primary);
+}
+
+.style-match-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.style-match-row__title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.style-match-row__hint {
+  font-size: 11px;
+  color: var(--text-subtle);
+}
+
 .geometry-hint {
   margin-top: -2px;
   color: var(--text-muted);
