@@ -2,12 +2,19 @@ import { spawn } from "node:child_process";
 import { mkdir, readdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { extractSubjectPalette, remapFramesToPalette } from "./palette-lock.js";
 import { ROOT_DIR, ensureInsideRoot } from "./files.js";
+
+export interface ExtractFramesOptions {
+  /** Reference Sprite bytes; when set, extracted frames are remapped to its Subject Palette. */
+  referenceSprite?: Buffer;
+}
 
 export async function extractFrames(
   inputMp4: string,
   outputDir: string,
   frameSize: number,
+  options: ExtractFramesOptions = {},
 ): Promise<string[]> {
   ensureInsideRoot(inputMp4);
   ensureInsideRoot(outputDir);
@@ -42,5 +49,11 @@ export async function extractFrames(
   if (frames.length === 0) {
     throw new Error("no frames produced");
   }
+
+  if (options.referenceSprite) {
+    const palette = await extractSubjectPalette(options.referenceSprite);
+    await remapFramesToPalette(outputDir, palette);
+  }
+
   return frames;
 }

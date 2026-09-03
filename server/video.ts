@@ -127,6 +127,11 @@ const CHROMA_DIRECTIVE =
   "environmental elements, no shadows on the background, no camera movement. " +
   "The subject animates against the uniform green backdrop.";
 
+const PALETTE_DIRECTIVE =
+  "Use only the colors present in the provided reference image for the subject, " +
+  "its shading, highlights, and outlines. Do not introduce new colors. " +
+  "Keep the chroma-green background unchanged.";
+
 type JobStatus =
   | "pending"
   | "in_progress"
@@ -158,11 +163,14 @@ export async function generateSpriteMotionVideo(
   text: string,
   duration = 2,
   model: VideoModelId = DEFAULT_VIDEO_MODEL,
+  paletteLock = false,
 ): Promise<VideoDownload> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
 
-  const fullText = `${text.trim()}\n\n${CHROMA_DIRECTIVE}`;
+  const fullText = paletteLock
+    ? `${text.trim()}\n\n${CHROMA_DIRECTIVE}\n\n${PALETTE_DIRECTIVE}`
+    : `${text.trim()}\n\n${CHROMA_DIRECTIVE}`;
   const config = videoModelConfig(model);
   const imageField = config.inputMode === "first-frame"
     ? {

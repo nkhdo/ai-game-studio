@@ -36,6 +36,14 @@ _Avoid_: Background validity, chroma validation
 Movement frames, spritesheets, and animated previews derived from the current Reference Sprite.
 _Avoid_: Outputs when specifically referring to derived project artifacts
 
+**Subject Palette**:
+The set of colors present in the opaque, non-background pixels of the current Reference Sprite. The chroma-green background color is never part of the Subject Palette, regardless of how much of the image it covers.
+_Avoid_: Sprite colors, image palette
+
+**Palette Lock**:
+A per-motion-generation option that constrains the colors of extracted Movement Frames to the Subject Palette. Prompt guidance asks the video model to reuse the Reference Sprite's colors, but only the deterministic color remap of extracted frames enforces the constraint. Frame transparency is never altered, and the remap never changes the alpha channel.
+_Avoid_: Color fixing, color correction, palette matching
+
 **Target Frame Size**:
 The requested pixel dimensions of the Reference Sprite. Acquisition guarantees the stored Reference Sprite exactly matches it, rescaling the image and extending the chroma-green background as needed rather than distorting the subject.
 The acquired value is also authoritative for extracted Movement Frames, spritesheet cells, and the animated preview. A later change to the acquisition controls remains a draft until another Reference Sprite is acquired. Video providers may receive an in-memory nearest-neighbor enlargement when their registry entry declares a larger minimum input; this transport copy is never persisted.

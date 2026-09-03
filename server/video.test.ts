@@ -91,6 +91,29 @@ test("submits the authoritative image as an exact first frame", async (t) => {
   }]);
 });
 
+test("appends the palette directive only when Palette Lock is on", async (t) => {
+  process.env.OPENROUTER_API_KEY = "test-key";
+  const prompts: string[] = [];
+  t.mock.method(globalThis, "fetch", async (
+    _input: string | URL | Request,
+    init?: RequestInit,
+  ) => {
+    const body = JSON.parse(String(init?.body)) as { prompt: string };
+    prompts.push(body.prompt);
+    return new Response(JSON.stringify({
+      id: "job-1",
+      status: "completed",
+      unsigned_urls: ["https://cdn.example/video.mp4"],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  });
+
+  await generateSpriteMotionVideo("data:image/png;base64,abc", "walk", 2, "x-ai/grok-imagine-video", true);
+  await generateSpriteMotionVideo("data:image/png;base64,abc", "walk", 2, "x-ai/grok-imagine-video", false);
+  assert.match(prompts[0], /only the colors present in the provided reference image/);
+  assert.doesNotMatch(prompts[1], /only the colors present in the provided reference image/);
+  assert.match(prompts[1], /chroma green background/);
+});
+
 test("preserves the raw provider error payload", async (t) => {
   process.env.OPENROUTER_API_KEY = "test-key";
   t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({
