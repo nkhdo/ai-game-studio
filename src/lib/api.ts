@@ -32,6 +32,11 @@ export interface VideoModelOption {
   id: string;
   label: string;
   defaultDuration: number;
+  inputMode: "first-frame" | "reference";
+  minInputWidth: number | null;
+  minInputHeight: number | null;
+  inputResizeKernel: "nearest";
+  constraintNote: string | null;
 }
 
 export interface ImageModelOption {
@@ -159,11 +164,10 @@ export function discardSpriteUpload(): Promise<{ ok: boolean }> {
 }
 
 export function animateSprite(
-  image: string,
   text: string,
   model?: string,
 ): Promise<ProjectView> {
-  return postJson("/api/sprites/animate", { image, text, model });
+  return postJson("/api/sprites/animate", { text, model });
 }
 
 export function getVideoModels(): Promise<VideoModelsResponse> {

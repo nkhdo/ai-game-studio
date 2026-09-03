@@ -73,6 +73,7 @@ export function mountApp(root: HTMLElement) {
 
   const motionInput = root.querySelector<HTMLTextAreaElement>("#motion-prompt")!;
   const motionModelSelect = root.querySelector<HTMLSelectElement>("#motion-model")!;
+  const videoModelGuidance = root.querySelector<HTMLDivElement>("#video-model-guidance")!;
   const generateFramesBtn = root.querySelector<HTMLButtonElement>("#btn-generate-frames")!;
   const framesGrid = root.querySelector<HTMLDivElement>("#frames-grid")!;
   const framesStatus = root.querySelector<HTMLDivElement>("#frames-status")!;
@@ -343,9 +344,24 @@ export function mountApp(root: HTMLElement) {
       return;
     }
     store.set({ status: "generating-video", errorMessage: null });
-    setStatus(framesStatus, `${spinner()}Generating motion video…`);
+    const selectedModel = state.videoModels.find((model) => model.id === state.motionModel);
+    const appliedSize = state.appliedFrameSize;
+    const minimum = Math.max(
+      selectedModel?.minInputWidth ?? 0,
+      selectedModel?.minInputHeight ?? 0,
+    );
+    const multiplier = appliedSize && minimum > appliedSize
+      ? Math.ceil(minimum / appliedSize)
+      : 1;
+    const submittedSize = appliedSize ? appliedSize * multiplier : null;
+    setStatus(
+      framesStatus,
+      appliedSize && submittedSize && submittedSize !== appliedSize
+        ? `${spinner()}Preparing ${selectedModel?.label ?? "video"} input: ${appliedSize} × ${appliedSize} → ${submittedSize} × ${submittedSize}…`
+        : `${spinner()}Generating motion video…`,
+    );
     try {
-      const view = await animateSprite(state.spriteSrc, text, state.motionModel);
+      const view = await animateSprite(text, state.motionModel);
       const v = view.updatedAt;
       store.set({
         status: "done",
@@ -395,7 +411,7 @@ export function mountApp(root: HTMLElement) {
     try {
       const sheet = await composeSpritesheet({
         frameSrcs: selected,
-        cellSize: state.frameSize,
+        cellSize: state.appliedFrameSize ?? state.frameSize,
       });
       store.set({
         spritesheetSrc: sheet.dataUrl,
@@ -593,6 +609,9 @@ export function mountApp(root: HTMLElement) {
     const selectedImageModel = state.imageModels.find(
       (model) => model.id === state.spriteModel,
     );
+    const selectedVideoModel = state.videoModels.find(
+      (model) => model.id === state.motionModel,
+    );
     const styleGuideLimit = Math.min(
       MAX_STYLE_GUIDE_IMAGES,
       selectedImageModel?.maxStyleGuideImages ?? 0,
@@ -607,6 +626,24 @@ export function mountApp(root: HTMLElement) {
         selectedImageModel.sizeStrategy === "target-size"
           ? `Generated directly at ${state.frameSize} × ${state.frameSize}.`
           : `Generated at the model's native size, optimized and resized to ${state.frameSize} × ${state.frameSize}.`;
+    }
+    if (selectedVideoModel) {
+      const mode = selectedVideoModel.inputMode === "first-frame"
+        ? "Exact first frame"
+        : "Reference guidance";
+      const constraints = [
+        selectedVideoModel.minInputWidth
+          ? `${selectedVideoModel.minInputWidth} px minimum width`
+          : null,
+        selectedVideoModel.minInputHeight
+          ? `${selectedVideoModel.minInputHeight} px minimum height`
+          : null,
+      ].filter(Boolean);
+      videoModelGuidance.textContent = constraints.length > 0
+        ? `${mode} · ${constraints.join(" · ")} · smaller inputs are enlarged`
+        : mode;
+    } else {
+      videoModelGuidance.textContent = "";
     }
 
     generateSpriteBtn.disabled = busy || !state.hasApiKey || incompatibleStyleGuides;
@@ -1023,6 +1060,7 @@ function renderShell(): string {
                 Generate Frames
               </button>
             </div>
+            <div id="video-model-guidance" class="geometry-hint"></div>
             <div id="frames-status" class="status"></div>
             <div class="frames-section">
               <div class="frames-section__label">Select frames to include</div>

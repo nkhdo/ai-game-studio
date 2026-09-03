@@ -38,6 +38,7 @@ _Avoid_: Outputs when specifically referring to derived project artifacts
 
 **Target Frame Size**:
 The requested pixel dimensions of the Reference Sprite. Acquisition guarantees the stored Reference Sprite exactly matches it, rescaling the image and extending the chroma-green background as needed rather than distorting the subject.
+The acquired value is also authoritative for extracted Movement Frames, spritesheet cells, and the animated preview. A later change to the acquisition controls remains a draft until another Reference Sprite is acquired. Video providers may receive an in-memory nearest-neighbor enlargement when their registry entry declares a larger minimum input; this transport copy is never persisted.
 _Avoid_: Output size, resolution, frame size when referring to animation frames
 
 **Subject Fill**:
