@@ -309,8 +309,6 @@ export async function commitReferenceUpload(uploadId: string) {
     spritePrompt: "",
     spriteAcquisition: "uploaded",
     appliedStyleGuideSet: [],
-    // Style matching defaults on for a freshly uploaded reference.
-    styleMatchReference: true,
     spriteOriginalFilename: prepared.originalFilename,
     backgroundSuitability: prepared.backgroundSuitability,
     sprite: PROJECT_FILES.ref,

@@ -10,11 +10,11 @@ test("project view exposes the source video when movement frames exist", () => {
   assert.equal(toView(manifest).sourceVideoUrl, "/projects/latest/source.mp4");
 });
 
-test("style match defaults off and round-trips through the view", () => {
+test("sprite palette lock defaults off and round-trips through the view", () => {
   const manifest = emptyManifest();
-  assert.equal(manifest.styleMatchReference, false);
-  assert.equal(toView(manifest).styleMatchReference, false);
+  assert.equal(manifest.spritePaletteLock, false);
+  assert.equal(toView(manifest).spritePaletteLock, false);
 
-  manifest.styleMatchReference = true;
-  assert.equal(toView(manifest).styleMatchReference, true);
+  manifest.spritePaletteLock = true;
+  assert.equal(toView(manifest).spritePaletteLock, true);
 });

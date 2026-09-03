@@ -120,7 +120,7 @@ Use TypeScript everywhere. Strict mode on.
 - `POST /api/projects/delete { name }` → removes a named snapshot.
 - `POST /api/projects/selection { selectedIndices: number[] }` → debounced persistence of the user's frame selection.
 - `POST /api/projects/spritesheet { dataUrl }` → writes `projects/latest/spritesheet.png` and best-effort builds `projects/latest/preview.gif` from the current selection. Returns the updated view.
-- `POST /api/sprites/generate { prompt, styleMatchReference? }` → generates the Reference Sprite via the Images API, writes `latest/ref/sprite.png`, parses PNG dimensions, returns `{ view, dataUrl }`. When `styleMatchReference` is true and the current sprite was uploaded, the uploaded image is sent as the first `input_reference` with a directive to copy its palette, outline weight, detail, and shading (subject excluded); the reference shares the selected model's `maxStyleGuideImages` budget with Style Guide Images.
+- `POST /api/sprites/generate { prompt, spritePaletteLock? }` → generates the Reference Sprite via the Images API, writes `latest/ref/sprite.png`, parses PNG dimensions, returns `{ view, dataUrl }`. When Style Guide Images are selected they are always sent as `input_references` with a directive to copy their palette, linework, detail, and shading (subjects excluded) — there is no separate toggle. The uploaded Reference Sprite is never part of the generation flow; upload and generation are distinct acquisition methods. When `spritePaletteLock` is true and Style Guide Images are selected, the generated sprite is post-processed to use only the union palette of those images, preserving the chroma background.
 - `POST /api/sprites/upload/prepare` → accepts one multipart `image`, validates and normalizes it to a staged PNG, and returns an opaque upload id plus metadata and whether replacement confirmation is required.
 - `POST /api/sprites/upload/commit { uploadId }` → installs the prepared Reference Sprite, records upload provenance, and clears downstream artifacts.
 - `POST /api/sprites/upload/discard` → removes the current prepared upload without changing project state.
@@ -329,7 +329,7 @@ The "working state" always lives in `projects/latest/`. Named snapshots live alo
   "name": "eric-draven",
   "spritePrompt": "...",
   "spriteAcquisition": "generated",
-  "styleMatchReference": false,
+  "spritePaletteLock": false,
   "spriteOriginalFilename": null,
   "backgroundSuitability": "suitable",
   "motionPrompt": "...",

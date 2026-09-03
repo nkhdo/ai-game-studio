@@ -223,7 +223,7 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       throw new Error("unsupported image model");
     }
     const model = requestedModel ?? DEFAULT_IMAGE_MODEL;
-    const styleMatchRequested = req.body?.styleMatchReference === true;
+    const spritePaletteLock = req.body?.spritePaletteLock === true;
     const geometry = parseTargetGeometry({
       frameSize: req.body?.frameSize,
       subjectFillPct: req.body?.subjectFillPct,
@@ -231,20 +231,6 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
     });
     const projectBeforeGeneration = await readManifest("latest");
     const styleGuideDataUrls = await readSelectedStyleGuideDataUrls(projectBeforeGeneration);
-    // Style matching borrows the uploaded Reference Sprite's palette, outline,
-    // detail, and shading; it only applies while the current sprite is an upload.
-    const referenceUsed =
-      styleMatchRequested && projectBeforeGeneration.spriteAcquisition === "uploaded";
-    let referenceDataUrl: string | null = null;
-    if (referenceUsed) {
-      const refAbs = path.join(LATEST_DIR, PROJECT_FILES.ref);
-      ensureInsideRoot(refAbs);
-      try {
-        referenceDataUrl = `data:image/png;base64,${(await readFile(refAbs)).toString("base64")}`;
-      } catch {
-        throw new Error("Reference Sprite could not be read for style matching");
-      }
-    }
     let generatedBase64: string;
     try {
       generatedBase64 = await generateSpriteImage(prompt, model, {
@@ -253,7 +239,6 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
           subjectFillPct: geometry.subjectFillPct,
         },
         styleGuideDataUrls,
-        referenceDataUrl: referenceDataUrl ?? undefined,
       });
     } catch (error) {
       if (projectBeforeGeneration.styleGuideSelection.length === 0) throw error;
@@ -268,13 +253,12 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
         `Generation with Style Guide Images ${filenames.join(", ")} failed: ${message}`,
       );
     }
-    const referenceBuffers = [
-      ...styleGuideDataUrls.map(dataUrlToBuffer),
-      ...(referenceDataUrl ? [dataUrlToBuffer(referenceDataUrl)] : []),
-    ];
+    // Palette Lock post-process: constrain the generated sprite to the union
+    // palette of the Style Guide Images only. The uploaded Reference Sprite is
+    // never part of the generation flow.
     const conformed = await conformToReferencePalette(
       Buffer.from(generatedBase64, "base64"),
-      referenceBuffers,
+      spritePaletteLock ? styleGuideDataUrls.map(dataUrlToBuffer) : [],
     );
     const normalized = await normalizeReferenceImage(conformed);
     const applied = await applyTargetGeometry(normalized.buffer, geometry);
@@ -292,7 +276,7 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       spritePrompt: prompt,
       spriteModel: model,
       appliedStyleGuideSet: [...projectBeforeGeneration.styleGuideSelection],
-      styleMatchReference: referenceUsed,
+      spritePaletteLock,
       spriteAcquisition: "generated",
       spriteOriginalFilename: null,
       backgroundSuitability: applied.backgroundSuitability,

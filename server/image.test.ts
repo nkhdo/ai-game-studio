@@ -94,22 +94,19 @@ test("provider size errors surface without retrying", async (t) => {
   assert.equal(calls, 1);
 });
 
-test("reference style match appends directive and sends the reference as first input_reference", async (t) => {
+test("style guides always send the style directive and input_references", async (t) => {
   const bodies = mockImageFetch(t);
   await generateSpriteImage("a readable hero", "openai/gpt-image-2", {
     styleGuideDataUrls: ["data:image/png;base64,guide"],
-    referenceDataUrl: "data:image/png;base64,reference",
   });
   const references = (
     bodies[0].input_references as Array<{ image_url: { url: string } }>
   ).map((reference) => reference.image_url.url);
-  assert.deepEqual(references, [
-    "data:image/png;base64,reference",
-    "data:image/png;base64,guide",
-  ]);
-  assert.match(String(bodies[0].prompt), /color palette, outline weight, level of detail/);
-  assert.match(String(bodies[0].prompt), /Do not copy its subject/);
+  assert.deepEqual(references, ["data:image/png;base64,guide"]);
+  assert.match(String(bodies[0].prompt), /palette, linework, shading, texture/);
+  assert.match(String(bodies[0].prompt), /Do not copy their subjects/);
   assert.match(String(bodies[0].prompt), /#00b140/);
+  assert.doesNotMatch(String(bodies[0].prompt), /The first attached image is the Reference Sprite/);
 });
 
 test("omits reference directive and input_reference when no reference is passed", async (t) => {
@@ -119,13 +116,12 @@ test("omits reference directive and input_reference when no reference is passed"
   assert.doesNotMatch(String(bodies[0].prompt), /color palette, outline weight/);
 });
 
-test("reference style match shares the model's reference image budget", async (t) => {
+test("rejects style guides beyond the model's reference budget", async (t) => {
   mockImageFetch(t);
   await assert.rejects(
     generateSpriteImage("a hero", "x-ai/grok-imagine-image-2.0", {
-      styleGuideDataUrls: ["one", "two", "three"],
-      referenceDataUrl: "data:image/png;base64,reference",
+      styleGuideDataUrls: ["one", "two", "three", "four"],
     }),
-    /reference images in total/,
+    /up to 3 Style Guide Images/,
   );
 });
