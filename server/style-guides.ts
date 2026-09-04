@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { ensureInsideRoot, LATEST_DIR, PROJECT_FILES } from "./files.js";
+import { activeProjectDir, activeProjectId, ensureInsideRoot, PROJECT_FILES } from "./files.js";
 import {
   pruneUnreferencedStyleGuides,
   readManifest,
@@ -31,7 +31,7 @@ export async function addStyleGuideImage(
       throw new Error("image is too large (maximum 10 MB)");
     }
 
-    const manifest = await readManifest("latest");
+    const manifest = await readManifest(activeProjectId());
     if (manifest.styleGuideSelection.length >= MAX_STYLE_GUIDE_IMAGES) {
       throw new Error(`a project can use up to ${MAX_STYLE_GUIDE_IMAGES} Style Guide Images`);
     }
@@ -43,7 +43,7 @@ export async function addStyleGuideImage(
 
     const id = randomUUID();
     const relativePath = path.posix.join(PROJECT_FILES.styleGuidesDir, `${id}.png`);
-    const absolutePath = path.join(LATEST_DIR, relativePath);
+    const absolutePath = path.join(activeProjectDir(), relativePath);
     ensureInsideRoot(absolutePath);
     await mkdir(path.dirname(absolutePath), { recursive: true });
     await writeFile(absolutePath, normalized);
@@ -64,7 +64,7 @@ export async function addStyleGuideImage(
 
 export async function removeStyleGuideImage(id: string): Promise<ProjectView> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error("invalid Style Guide Image id");
-  const manifest = await readManifest("latest");
+  const manifest = await readManifest(activeProjectId());
   if (!manifest.styleGuideSelection.includes(id)) {
     throw new Error("Style Guide Image not found in the current selection");
   }
@@ -82,7 +82,7 @@ export async function readSelectedStyleGuideDataUrls(
     manifest.styleGuideSelection.map(async (id) => {
       const guide = manifest.styleGuideImages.find((candidate) => candidate.id === id);
       if (!guide) throw new Error("Style Guide Image metadata is incomplete");
-      const absolutePath = path.join(LATEST_DIR, guide.path);
+      const absolutePath = path.join(activeProjectDir(), guide.path);
       ensureInsideRoot(absolutePath);
       try {
         const image = await readFile(absolutePath);

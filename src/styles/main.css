@@ -100,17 +100,6 @@ button {
   letter-spacing: -0.01em;
 }
 
-.app-header__project {
-  font-size: 13px;
-  color: var(--text-muted);
-  margin-left: 4px;
-}
-
-.app-header__project #project-label {
-  color: var(--text);
-  font-weight: 500;
-}
-
 .app-header__actions {
   display: flex;
   align-items: center;
@@ -127,6 +116,13 @@ button {
 /* ---------- Load menu (dropdown) ---------- */
 .load-menu-wrap {
   position: relative;
+}
+
+#project-select-label {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .load-menu {
@@ -155,10 +151,40 @@ button {
   color: var(--text-muted);
 }
 
+.load-menu__create {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.load-menu__create:hover { background: #f3f4f6; }
+.load-menu__separator { height: 1px; margin: 4px; background: var(--border); }
+
 .load-menu__row {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 2px;
+  border-radius: 6px;
+}
+
+.load-menu__row:hover {
+  background: #f3f4f6;
+}
+
+.load-menu__row.is-current {
+  background: #eef2ff;
+}
+
+.load-menu__row.is-current:hover {
+  background: #e0e7ff;
 }
 
 .load-menu__item {
@@ -178,12 +204,21 @@ button {
 }
 
 .load-menu__item:hover {
-  background: #f3f4f6;
+  background: transparent;
 }
 
 .load-menu__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 13px;
   font-weight: 500;
+}
+
+.iconify-inline {
+  width: 1em;
+  height: 1em;
+  flex: none;
 }
 
 .load-menu__time {
@@ -191,17 +226,37 @@ button {
   color: var(--text-muted);
 }
 
-.load-menu__delete {
+.load-menu__delete,
+.load-menu__rename {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 28px;
   width: 28px;
+  height: 28px;
+  padding: 0;
   background: transparent;
   border: none;
   border-radius: 6px;
   color: var(--text-subtle);
   cursor: pointer;
 }
+
+.load-menu__rename {
+  color: var(--text-subtle);
+}
+
+.load-menu__rename:hover { background: #eef2ff; color: var(--primary); }
+
+.save-indicator {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+}
+
+.save-indicator:not(:disabled) { cursor: pointer; }
 
 .load-menu__delete:hover {
   background: #fee2e2;

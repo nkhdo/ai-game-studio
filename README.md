@@ -45,9 +45,9 @@ This starts Vite (frontend, :5173) and an Express server (backend, :8787) togeth
 5. **Select frames** → previews the Animation Draft immediately at the chosen FPS.
 6. **Save as New** → freezes the selected frames and creates a named Animation with a 1×N spritesheet and looping GIF.
 7. Reopen, update, export, or delete any saved Animation from the project library.
-7. Header: **New** to start fresh, **Save** to name and snapshot the current project, **Load** to switch to a saved one.
+8. Use **Current Project** in the header to create, switch, rename, or delete projects. Draft fields and completed operations save automatically.
 
-Generated artifacts live under `projects/` (gitignored). The current working state is always in `projects/latest/`.
+Generated artifacts live under UUID-addressed directories in `projects/` (gitignored). Project labels are editable display names and do not affect storage paths.
 
 ## Example prompts
 

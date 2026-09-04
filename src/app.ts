@@ -1,6 +1,7 @@
 import {
   checkHealth,
   commitSpriteUpload,
+  createProject,
   createAnimation,
   deleteAnimation,
   deleteProject,
@@ -8,16 +9,16 @@ import {
   generateSprite,
   generateMotionVideo,
   generateMovementFrames,
-  getCurrentProject,
+  getProject,
   getImageModels,
   getVideoModels,
   listProjects,
-  loadProject,
-  newProject,
   prepareSpriteUpload,
   removeStyleGuide,
-  saveProject,
+  renameProject,
+  saveProjectDraft,
   saveSelection,
+  setActiveProject,
   type StyleGuideImageView,
   uploadStyleGuide,
   updateAnimation,
@@ -33,10 +34,12 @@ import {
 import { composeSpritesheet, loadImage } from "./lib/spritesheet";
 import {
   chevronIcon,
+  closeIcon,
   folderIcon,
   frameIcon,
+  minusIcon,
   plusIcon,
-  saveIcon,
+  renameIcon,
   sparkleIcon,
   trashIcon,
 } from "./components/icons";
@@ -50,8 +53,10 @@ export function mountApp(root: HTMLElement) {
   const initialNavigation = parseNavigation(new URL(window.location.href));
   let activeStep = initialNavigation.step ? stepNumber(initialNavigation.step) : 1;
   let lastView: import("./lib/api").ProjectView | null = null;
-  let cleanUpdatedAt: string | null = null;
-  let hasUnsavedInput = false;
+  let autosaveReady = false;
+  let autosaveTimer: number | undefined;
+  let lastDraftSnapshot = "";
+  let pendingDraftSnapshot = "";
   let applyingNavigation = false;
   root.innerHTML = renderShell();
 
@@ -118,11 +123,10 @@ export function mountApp(root: HTMLElement) {
   const animationsList = root.querySelector<HTMLDivElement>("#animations-list")!;
   const animationStatus = root.querySelector<HTMLDivElement>("#animation-status")!;
 
-  const projectLabel = root.querySelector<HTMLSpanElement>("#project-label")!;
-  const newBtn = root.querySelector<HTMLButtonElement>("#btn-new-project")!;
-  const saveBtn = root.querySelector<HTMLButtonElement>("#btn-save-project")!;
   const loadBtn = root.querySelector<HTMLButtonElement>("#btn-load-project")!;
+  const projectSelectLabel = root.querySelector<HTMLSpanElement>("#project-select-label")!;
   const loadMenu = root.querySelector<HTMLDivElement>("#load-menu")!;
+  const saveIndicator = root.querySelector<HTMLButtonElement>("#save-indicator")!;
   const accordionItems = [
     ...root.querySelectorAll<HTMLElement>("[data-accordion-step]"),
   ];
@@ -149,8 +153,7 @@ export function mountApp(root: HTMLElement) {
         ?.setAttribute("aria-expanded", String(isOpen));
     }
     if (syncUrl) {
-      const name = store.get().currentProjectName;
-      writeNavigation("replace", name === "latest" ? null : name);
+      writeNavigation("replace", store.get().currentProjectId);
     }
   }
 
@@ -162,17 +165,17 @@ export function mountApp(root: HTMLElement) {
 
   // ---- Event handlers ----
   promptInput.addEventListener("input", () => {
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     store.set({ spritePrompt: promptInput.value });
   });
 
   spriteModelSelect.addEventListener("change", () => {
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     store.set({ spriteModel: spriteModelSelect.value });
   });
 
   spritePaletteLockInput.addEventListener("change", () => {
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     store.set({ spritePaletteLock: spritePaletteLockInput.checked });
   });
 
@@ -185,17 +188,17 @@ export function mountApp(root: HTMLElement) {
   });
 
   targetSizeSelect.addEventListener("change", () => {
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     store.set({ frameSize: Number(targetSizeSelect.value) });
   });
 
   subjectFillSelect.addEventListener("change", () => {
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     store.set({ subjectFillPct: Number(subjectFillSelect.value) });
   });
 
   colorCountSelect.addEventListener("change", () => {
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     store.set({
       colorCount: colorCountSelect.value === "off" ? null : Number(colorCountSelect.value),
     });
@@ -357,7 +360,7 @@ export function mountApp(root: HTMLElement) {
       }
       const view = await commitSpriteUpload(prepared.uploadId);
       lastView = view;
-      hasUnsavedInput = true;
+      scheduleDraftAutosave();
       frozenDraftFrames = null;
       animationNameInput.value = "";
       const patch = hydrateFromView(view);
@@ -379,20 +382,20 @@ export function mountApp(root: HTMLElement) {
   }
 
   motionInput.addEventListener("input", () => {
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     store.set({ motionPrompt: motionInput.value });
   });
 
   motionModelSelect.addEventListener("change", () => {
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     store.set({ motionModel: motionModelSelect.value });
   });
   paletteLockInput.addEventListener("change", () => {
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     store.set({ paletteLock: paletteLockInput.checked });
   });
   hardAlphaEdgesInput.addEventListener("change", () => {
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     store.set({ hardAlphaEdges: hardAlphaEdgesInput.checked });
   });
 
@@ -416,7 +419,7 @@ export function mountApp(root: HTMLElement) {
         colorCount: state.colorCount,
       }, state.spritePaletteLock);
       lastView = result.view;
-      hasUnsavedInput = true;
+      scheduleDraftAutosave();
       frozenDraftFrames = null;
       animationNameInput.value = "";
       const img = await loadImage(result.dataUrl);
@@ -480,7 +483,7 @@ export function mountApp(root: HTMLElement) {
     try {
       const view = await generateMotionVideo(text, state.motionModel);
       lastView = view;
-      hasUnsavedInput = true;
+      scheduleDraftAutosave();
       frozenDraftFrames = null;
       animationNameInput.value = "";
       store.set({ ...hydrateFromView(view), activeAnimationId: null, status: "done", errorMessage: null });
@@ -508,7 +511,7 @@ export function mountApp(root: HTMLElement) {
     try {
       const view = await generateMovementFrames(state.paletteLock, state.hardAlphaEdges);
       lastView = view;
-      hasUnsavedInput = true;
+      scheduleDraftAutosave();
       frozenDraftFrames = null;
       animationNameInput.value = "";
       const patch = hydrateFromView(view);
@@ -537,7 +540,7 @@ export function mountApp(root: HTMLElement) {
     frozenDraftFrames = null;
     if (next.has(index)) next.delete(index);
     else next.add(index);
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     store.set({ selectedFrameIndices: next });
     scheduleSelectionPersist();
   });
@@ -545,7 +548,7 @@ export function mountApp(root: HTMLElement) {
   selectAllFramesBtn.addEventListener("click", () => {
     const state = store.get();
     if (state.frames.length === 0) return;
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     frozenDraftFrames = null;
     store.set({
       selectedFrameIndices: new Set(state.frames.map((_, i) => i)),
@@ -555,7 +558,7 @@ export function mountApp(root: HTMLElement) {
 
   deselectAllFramesBtn.addEventListener("click", () => {
     if (store.get().selectedFrameIndices.size === 0) return;
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     frozenDraftFrames = null;
     store.set({ selectedFrameIndices: new Set<number>() });
     scheduleSelectionPersist();
@@ -642,8 +645,11 @@ export function mountApp(root: HTMLElement) {
   animationFpsInput.addEventListener("change", () => {
     const fps = Math.max(1, Math.min(60, Math.round(Number(animationFpsInput.value) || 12)));
     animationFpsInput.value = String(fps);
-    hasUnsavedInput = true;
+    scheduleDraftAutosave();
     store.set({ animationFps: fps });
+  });
+  animationNameInput.addEventListener("input", () => {
+    store.set({ animationDraftName: animationNameInput.value });
   });
 
   function activateAnimation(id: string | null, syncUrl = true) {
@@ -653,13 +659,14 @@ export function mountApp(root: HTMLElement) {
     if (!animation) {
       frozenDraftFrames = null;
       animationNameInput.value = "";
-      store.set({ activeAnimationId: null, spritesheetSrc: null, previewGifSrc: null });
+      store.set({ activeAnimationId: null, animationDraftName: "", spritesheetSrc: null, previewGifSrc: null });
     } else {
       frozenDraftFrames = animation.frameUrls;
       animationNameInput.value = animation.name;
       animationFpsInput.value = String(animation.fps);
       store.set({
         activeAnimationId: animation.id,
+        animationDraftName: animation.name,
         animationFps: animation.fps,
         selectedFrameIndices: new Set(animation.frameIndices),
         spritesheetSrc: animation.spritesheetUrl,
@@ -670,8 +677,7 @@ export function mountApp(root: HTMLElement) {
     quickPreviewKey = "";
     renderQuickPreview();
     if (syncUrl) {
-      const project = store.get().currentProjectName;
-      writeNavigation("replace", project === "latest" ? null : project);
+      writeNavigation("replace", store.get().currentProjectId);
     }
   }
 
@@ -726,9 +732,8 @@ export function mountApp(root: HTMLElement) {
         spritesheetCols: frames.length,
         previewGifSrc: saved?.previewGifUrl ?? null,
       });
-      const project = store.get().currentProjectName;
-      writeNavigation("replace", project === "latest" ? null : project);
-      hasUnsavedInput = true;
+      writeNavigation("replace", store.get().currentProjectId);
+      scheduleDraftAutosave();
       setStatus(animationStatus, `Animation '${escapeHtml(name)}' saved.`, "success");
       toast(`Saved Animation '${name}'`);
     } catch (err) {
@@ -763,9 +768,8 @@ export function mountApp(root: HTMLElement) {
           spritesheetSrc: wasActive ? null : store.get().spritesheetSrc,
           previewGifSrc: wasActive ? null : store.get().previewGifSrc,
         });
-        const project = store.get().currentProjectName;
-        writeNavigation("replace", project === "latest" ? null : project);
-        hasUnsavedInput = true;
+        writeNavigation("replace", store.get().currentProjectId);
+        scheduleDraftAutosave();
         toast(`Deleted Animation '${animation.name}'`);
       } catch (err) {
         setStatus(animationStatus, escapeHtml(err instanceof Error ? err.message : "Delete failed"), "error");
@@ -782,82 +786,7 @@ export function mountApp(root: HTMLElement) {
     activateAnimation(animation.id);
   });
 
-  // ---- New / Save / Load wiring ----
-  function hasMeaningfulWork() {
-    const state = store.get();
-    return state.spriteSrc !== null ||
-      state.frames.length > 0 ||
-      state.spritePrompt.trim().length > 0 ||
-      state.styleGuides.length > 0 ||
-      state.motionPrompt.trim().length > 0;
-  }
-
-  function isDirty() {
-    if (hasUnsavedInput) return true;
-    const state = store.get();
-    if (state.currentProjectName === "latest") return hasMeaningfulWork();
-    return lastView !== null && lastView.updatedAt !== cleanUpdatedAt;
-  }
-
-  function confirmDiscard() {
-    return !isDirty() || window.confirm(
-      "Discard unsaved changes and switch projects? Unsaved work will be lost.",
-    );
-  }
-
-  newBtn.addEventListener("click", async () => {
-    if (!confirmDiscard()) return;
-    try {
-      const view = await newProject();
-      applyView(view);
-      frozenDraftFrames = null;
-      animationNameInput.value = "";
-      store.set({ activeAnimationId: null });
-      cleanUpdatedAt = null;
-      hasUnsavedInput = false;
-      openAccordionStep(1, false);
-      writeNavigation("push", null);
-      setStatus(spriteStatus, "", "info");
-      setStatus(videoStatus, "", "info");
-      setStatus(framesStatus, "", "info");
-      toast("Started a new project");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to start new project";
-      toast(message);
-    }
-  });
-
-  saveBtn.addEventListener("click", async () => {
-    const suggested = store.get().currentProjectName === "latest" ? "" : store.get().currentProjectName;
-    const raw = window.prompt(
-      "Save project as (letters, numbers, hyphen, underscore — max 40 chars):",
-      suggested,
-    );
-    if (raw === null) return;
-    const name = raw.trim();
-    if (!name) return;
-
-    const existing = store.get().savedProjects.find((p) => p.name === name);
-    if (existing && !window.confirm(`Project '${name}' exists. Overwrite?`)) {
-      return;
-    }
-
-    try {
-      const view = await saveProject(name);
-      applyView(view);
-      cleanUpdatedAt = view.updatedAt;
-      hasUnsavedInput = false;
-      store.set({
-        savedProjects: await listProjects(),
-      });
-      writeNavigation("replace", view.name);
-      toast(`Saved as '${name}'`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Save failed";
-      toast(message);
-    }
-  });
-
+  // ---- Project menu wiring ----
   loadBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
     const open = loadMenu.classList.toggle("is-open");
@@ -872,30 +801,69 @@ export function mountApp(root: HTMLElement) {
   });
 
   document.addEventListener("click", (e) => {
-    if (!loadMenu.contains(e.target as Node) && e.target !== loadBtn) {
+    if (!loadMenu.contains(e.target as Node) && !loadBtn.contains(e.target as Node)) {
       loadMenu.classList.remove("is-open");
     }
   });
 
   loadMenu.addEventListener("click", async (e) => {
     const target = e.target as HTMLElement;
-    const item = target.closest<HTMLElement>("[data-load-name]");
-    const del = target.closest<HTMLElement>("[data-delete-name]");
+    const create = target.closest<HTMLElement>("[data-create-project]");
+    const item = target.closest<HTMLElement>("[data-project-id]");
+    const rename = target.closest<HTMLElement>("[data-rename-id]");
+    const del = target.closest<HTMLElement>("[data-delete-id]");
+
+    if (create) {
+      try {
+        const view = await createProject();
+        switchProject(view, "push");
+        store.set({ savedProjects: await listProjects() });
+        loadMenu.classList.remove("is-open");
+        toast("Created a new project");
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Failed to create project");
+      }
+      return;
+    }
+
+    if (rename) {
+      e.stopPropagation();
+      const id = rename.dataset.renameId!;
+      const project = store.get().savedProjects.find((candidate) => candidate.id === id);
+      if (!project) return;
+      const raw = window.prompt("Rename project:", project.label);
+      if (raw === null || !raw.trim()) return;
+      try {
+        const view = await renameProject(id, raw.trim());
+        if (id === store.get().currentProjectId) applyView(view);
+        store.set({ savedProjects: await listProjects() });
+        loadMenu.classList.remove("is-open");
+        toast(`Renamed project to '${view.label}'`);
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Rename failed");
+      }
+      return;
+    }
 
     if (del) {
       e.stopPropagation();
-      const name = del.dataset.deleteName!;
-      if (!window.confirm(`Delete saved project '${name}'? This can't be undone.`)) return;
+      const id = del.dataset.deleteId!;
+      const project = store.get().savedProjects.find((candidate) => candidate.id === id);
+      if (!project || !window.confirm(`Delete project '${project.label}'? This can't be undone.`)) return;
       try {
-        await deleteProject(name);
-        store.set({ savedProjects: await listProjects() });
-        if (store.get().currentProjectName === name) {
-          store.set({ currentProjectName: "latest" });
-          cleanUpdatedAt = null;
-          hasUnsavedInput = true;
-          writeNavigation("replace", null);
+        await deleteProject(id);
+        let projects = await listProjects();
+        if (store.get().currentProjectId === id) {
+          if (projects.length === 0) {
+            const replacement = await createProject();
+            projects = await listProjects();
+            switchProject(replacement, "replace");
+          } else {
+            switchProject(await getProject(projects[0].id), "replace");
+          }
         }
-        toast(`Deleted '${name}'`);
+        store.set({ savedProjects: projects });
+        toast(`Deleted '${project.label}'`);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Delete failed";
         toast(message);
@@ -904,26 +872,28 @@ export function mountApp(root: HTMLElement) {
     }
 
     if (item) {
-      const name = item.dataset.loadName!;
+      const id = item.dataset.projectId!;
+      if (target.closest("[data-rename-id], [data-delete-id]")) return;
       loadMenu.classList.remove("is-open");
-      if (!confirmDiscard()) return;
       try {
-        const view = await loadProject(name);
-        applyView(view);
-        frozenDraftFrames = null;
-        animationNameInput.value = "";
-        store.set({ activeAnimationId: null });
-        cleanUpdatedAt = view.updatedAt;
-        hasUnsavedInput = false;
-        openAccordionStep(view.sourceVideoUrl ? 3 : view.spriteUrl ? 2 : 1, false);
-        writeNavigation("push", name);
-        toast(`Loaded '${name}'`);
+        const view = await getProject(id);
+        switchProject(view, "push");
+        toast(`Opened '${view.label}'`);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Load failed";
         toast(message);
       }
     }
   });
+
+  function switchProject(view: import("./lib/api").ProjectView, mode: "push" | "replace") {
+    setActiveProject(view.id, view.revision);
+    applyView(view);
+    frozenDraftFrames = null;
+    store.set({ activeAnimationId: null });
+    openAccordionStep(inferredStep(view), false);
+    writeNavigation(mode, view.id);
+  }
 
   // ---- Debounced selection persistence ----
   let selectionTimer: number | undefined;
@@ -937,8 +907,68 @@ export function mountApp(root: HTMLElement) {
     }, SELECTION_DEBOUNCE_MS);
   }
 
+  function draftPatch(state = store.get()) {
+    return {
+      spritePrompt: state.spritePrompt,
+      spriteModel: state.spriteModel,
+      spritePaletteLock: state.spritePaletteLock,
+      motionPrompt: state.motionPrompt,
+      motionModel: state.motionModel,
+      paletteLock: state.paletteLock,
+      hardAlphaEdges: state.hardAlphaEdges,
+      spriteAcquisitionMode: state.spriteAcquisitionMode,
+      draftFrameSize: state.frameSize,
+      draftSubjectFillPct: state.subjectFillPct,
+      draftColorCount: state.colorCount,
+      animationDraftName: state.animationDraftName,
+      animationDraftFps: state.animationFps,
+    };
+  }
+
+  function scheduleDraftAutosave() {
+    if (!autosaveReady || !store.get().currentProjectId) return;
+    const scheduledSnapshot = JSON.stringify(draftPatch());
+    if (scheduledSnapshot === lastDraftSnapshot || scheduledSnapshot === pendingDraftSnapshot) return;
+    pendingDraftSnapshot = scheduledSnapshot;
+    if (autosaveTimer) window.clearTimeout(autosaveTimer);
+    store.set({ saveStatus: "saving" });
+    autosaveTimer = window.setTimeout(async () => {
+      const snapshot = JSON.stringify(draftPatch());
+      if (snapshot === lastDraftSnapshot) {
+        pendingDraftSnapshot = "";
+        store.set({ saveStatus: "idle" });
+        return;
+      }
+      try {
+        const base = JSON.parse(lastDraftSnapshot || "{}") as Record<string, unknown>;
+        const current = draftPatch();
+        const changed = Object.fromEntries(
+          Object.entries(current).filter(([key, value]) => base[key] !== value),
+        );
+        const view = await saveProjectDraft(store.get().projectRevision, changed, base);
+        lastDraftSnapshot = snapshot;
+        pendingDraftSnapshot = "";
+        lastView = view;
+        store.set({ projectRevision: view.revision, saveStatus: "saved" });
+        store.set({ savedProjects: await listProjects() });
+        window.setTimeout(() => {
+          if (store.get().saveStatus === "saved") store.set({ saveStatus: "idle" });
+        }, 1400);
+      } catch (error) {
+        pendingDraftSnapshot = "";
+        store.set({ saveStatus: "error" });
+        console.warn("[client] autosave failed", error);
+      }
+    }, SELECTION_DEBOUNCE_MS);
+  }
+
+  saveIndicator.addEventListener("click", () => {
+    if (store.get().saveStatus === "error") scheduleDraftAutosave();
+  });
+
   // ---- Apply a server view into local state ----
   function applyView(view: import("./lib/api").ProjectView) {
+    autosaveReady = false;
     lastView = view;
     const patch = hydrateFromView(view);
     if (
@@ -952,6 +982,11 @@ export function mountApp(root: HTMLElement) {
     store.set(patch);
     promptInput.value = view.spritePrompt;
     motionInput.value = view.motionPrompt;
+    animationNameInput.value = view.animationDraftName;
+    animationFpsInput.value = String(view.animationDraftFps);
+    lastDraftSnapshot = JSON.stringify(draftPatch({ ...store.get(), ...patch }));
+    pendingDraftSnapshot = "";
+    autosaveReady = true;
     setStatus(videoStatus, "");
     setStatus(framesStatus, "");
   }
@@ -962,6 +997,10 @@ export function mountApp(root: HTMLElement) {
 
   // ---- Render reactivity ----
   store.subscribe((state) => {
+    void lastView;
+    if (autosaveReady && JSON.stringify(draftPatch(state)) !== lastDraftSnapshot) {
+      scheduleDraftAutosave();
+    }
     const busy =
       state.status === "generating-image" ||
       state.status === "uploading-style-guide" ||
@@ -1030,8 +1069,6 @@ export function mountApp(root: HTMLElement) {
     saveAnimationBtn.disabled = busy || state.selectedFrameIndices.size === 0;
     updateAnimationBtn.disabled = busy || !state.activeAnimationId;
     newAnimationBtn.disabled = busy;
-    newBtn.disabled = busy;
-    saveBtn.disabled = busy;
     loadBtn.disabled = busy;
 
     generatePanel.hidden = !generateMode;
@@ -1148,10 +1185,15 @@ export function mountApp(root: HTMLElement) {
     animationsList.innerHTML = renderAnimations(state.animations, state.activeAnimationId);
     renderQuickPreview();
 
-    projectLabel.textContent =
-      state.currentProjectName === "latest" ? "untitled" : state.currentProjectName;
+    projectSelectLabel.textContent = state.currentProjectLabel;
+    projectSelectLabel.title = state.currentProjectLabel;
+    const saveText = state.saveStatus === "saving" ? "Saving…" :
+      state.saveStatus === "saved" ? "Saved" :
+      state.saveStatus === "error" ? "Not saved · Retry" : "";
+    saveIndicator.textContent = saveText;
+    saveIndicator.hidden = !saveText;
 
-    loadMenu.innerHTML = renderLoadMenu(state.savedProjects);
+    loadMenu.innerHTML = renderLoadMenu(state.savedProjects, state.currentProjectId);
 
     // Re-render the model select only when the list changes (avoid clobbering user input mid-edit)
     const imageOptionsKey = state.imageModels
@@ -1183,28 +1225,6 @@ export function mountApp(root: HTMLElement) {
     return view.sourceVideoUrl ? 3 : view.spriteUrl ? 2 : 1;
   }
 
-  function viewIsDirty(
-    view: import("./lib/api").ProjectView,
-    projects: import("./lib/api").ProjectSummary[],
-  ) {
-    const meaningful = Boolean(
-      view.spriteUrl || view.frames.length || view.spritePrompt.trim() ||
-      view.styleGuides.length || view.motionPrompt.trim(),
-    );
-    if (view.name === "latest") return meaningful;
-    return projects.find((project) => project.name === view.name)?.updatedAt !== view.updatedAt;
-  }
-
-  function isValidProjectName(name: string) {
-    return name !== "latest" && /^[a-zA-Z0-9_-]{1,40}$/.test(name);
-  }
-
-  window.addEventListener("beforeunload", (event) => {
-    if (!isDirty()) return;
-    event.preventDefault();
-    event.returnValue = "";
-  });
-
   window.addEventListener("popstate", () => {
     if (applyingNavigation) return;
     void navigateFromUrl();
@@ -1212,35 +1232,21 @@ export function mountApp(root: HTMLElement) {
 
   async function navigateFromUrl() {
     const requested = parseNavigation(new URL(window.location.href));
-    const currentName = store.get().currentProjectName;
-    const requestedName = requested.project ?? "latest";
-    if (requestedName === currentName) {
+    const currentId = store.get().currentProjectId;
+    if (!requested.project || requested.project === currentId) {
       openAccordionStep(requested.step ? stepNumber(requested.step) : activeStep, false);
       activateAnimation(requested.animation, false);
-      writeNavigation("replace", currentName === "latest" ? null : currentName);
-      return;
-    }
-    if (!confirmDiscard()) {
-      writeNavigation("replace", currentName === "latest" ? null : currentName);
+      writeNavigation("replace", currentId);
       return;
     }
     applyingNavigation = true;
     try {
-      if (requested.project && !isValidProjectName(requested.project)) {
-        throw new Error(`Invalid project link '${requested.project}'`);
-      }
-      const view = requested.project
-        ? await loadProject(requested.project)
-        : await newProject();
+      const view = await getProject(requested.project);
+      setActiveProject(view.id, view.revision);
       applyView(view);
-      frozenDraftFrames = null;
-      animationNameInput.value = "";
-      store.set({ activeAnimationId: null });
       activateAnimation(requested.animation, false);
-      cleanUpdatedAt = requested.project ? view.updatedAt : null;
-      hasUnsavedInput = false;
       openAccordionStep(requested.step ? stepNumber(requested.step) : inferredStep(view), false);
-      writeNavigation("replace", requested.project);
+      writeNavigation("replace", view.id);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Project navigation failed";
       setStatus(spriteStatus, escapeHtml(message), "error");
@@ -1250,87 +1256,40 @@ export function mountApp(root: HTMLElement) {
     }
   }
 
-  if ("BroadcastChannel" in window) {
-    const channel = new BroadcastChannel("ai-game-studio-editor");
-    let warned = false;
-    channel.addEventListener("message", (event) => {
-      if (event.data === "hello") channel.postMessage("present");
-      if (event.data === "present" && !warned) {
-        warned = true;
-        toast("Another editor tab is open. Both tabs share the same working project.");
-      }
-    });
-    channel.postMessage("hello");
-  }
-
   // ---- Boot ----
   Promise.all([
     checkHealth(),
-    getCurrentProject(),
     listProjects(),
     getImageModels(),
     getVideoModels(),
   ])
-    .then(async ([health, currentView, projects, imageModelsResp, videoModelsResp]) => {
+    .then(async ([health, initialProjects, imageModelsResp, videoModelsResp]) => {
+      let projects = initialProjects;
+      let view: import("./lib/api").ProjectView;
+      if (initialNavigation.project) {
+        try {
+          view = await getProject(initialNavigation.project);
+        } catch {
+          view = projects.length > 0 ? await getProject(projects[0].id) : await createProject();
+        }
+      } else {
+        view = projects.length > 0 ? await getProject(projects[0].id) : await createProject();
+      }
+      if (projects.length === 0) projects = await listProjects();
+      setActiveProject(view.id, view.revision);
       store.set({
         hasApiKey: health.hasApiKey,
         savedProjects: projects,
         imageModels: [...imageModelsResp.models],
         videoModels: [...videoModelsResp.models],
       });
-      let view = currentView;
-      let projectForUrl = currentView.name === "latest" ? null : currentView.name;
-      if (initialNavigation.project && initialNavigation.project !== currentView.name) {
-        if (!isValidProjectName(initialNavigation.project)) {
-          applyView(currentView);
-          openAccordionStep(
-            initialNavigation.step ? stepNumber(initialNavigation.step) : inferredStep(currentView),
-            false,
-          );
-          setStatus(
-            spriteStatus,
-            `Invalid project link '${escapeHtml(initialNavigation.project)}'.`,
-            "error",
-          );
-          const normalized = withNavigation(new URL(window.location.href), {
-            step: stepName(activeStep),
-          });
-          window.history.replaceState({}, "", normalized);
-          return;
-        }
-        if (
-          !viewIsDirty(currentView, projects) ||
-          window.confirm("Open the linked project? Unsaved work in the current workspace will be lost.")
-        ) {
-          try {
-            view = await loadProject(initialNavigation.project);
-            projectForUrl = initialNavigation.project;
-          } catch (err) {
-            applyView(currentView);
-            openAccordionStep(
-              initialNavigation.step ? stepNumber(initialNavigation.step) : inferredStep(currentView),
-              false,
-            );
-            const message = err instanceof Error ? err.message : "Project not found";
-            setStatus(spriteStatus, escapeHtml(message), "error");
-            const normalized = withNavigation(new URL(window.location.href), {
-              step: stepName(activeStep),
-            });
-            window.history.replaceState({}, "", normalized);
-            return;
-          }
-        }
-      }
       applyView(view);
-      const saved = projects.find((project) => project.name === view.name);
-      cleanUpdatedAt = saved?.updatedAt ?? null;
-      hasUnsavedInput = false;
       openAccordionStep(
         initialNavigation.step ? stepNumber(initialNavigation.step) : inferredStep(view),
         false,
       );
       activateAnimation(initialNavigation.animation, false);
-      writeNavigation("replace", projectForUrl);
+      writeNavigation("replace", view.id);
     })
     .catch((err) => {
       console.error("[client] boot failed", err);
@@ -1403,31 +1362,36 @@ function renderStyleGuideImages(guides: StyleGuideImageView[], disabled: boolean
             aria-label="Remove ${escapeAttr(guide.originalFilename)}"
             title="${escapeAttr(guide.originalFilename)}"
             ${disabled ? "disabled" : ""}
-          >×</button>
+          >${closeIcon}</button>
         </div>
       `,
     )
     .join("");
 }
 
-function renderLoadMenu(projects: { name: string; updatedAt: string }[]): string {
-  if (projects.length === 0) {
-    return `<div class="load-menu__empty">No saved projects yet</div>`;
-  }
-  return projects
+function renderLoadMenu(
+  projects: Array<{ id: string; label: string; createdAt: string }>,
+  currentId: string,
+): string {
+  return `
+    ${projects
     .map((p) => {
-      const when = new Date(p.updatedAt).toLocaleString();
+      const when = new Date(p.createdAt).toLocaleString();
       return `
-        <div class="load-menu__row">
-          <button class="load-menu__item" data-load-name="${escapeAttr(p.name)}">
-            <span class="load-menu__name">${escapeHtml(p.name)}</span>
+        <div class="load-menu__row${p.id === currentId ? " is-current" : ""}" data-project-id="${escapeAttr(p.id)}">
+          <button class="load-menu__item" type="button">
+            <span class="load-menu__name">${escapeHtml(p.label)}</span>
             <span class="load-menu__time">${escapeHtml(when)}</span>
           </button>
-          <button class="load-menu__delete" data-delete-name="${escapeAttr(p.name)}" title="Delete">${trashIcon}</button>
+          <button class="load-menu__rename" type="button" data-rename-id="${escapeAttr(p.id)}" title="Rename" aria-label="Rename ${escapeAttr(p.label)}">${renameIcon}</button>
+          <button class="load-menu__delete" type="button" data-delete-id="${escapeAttr(p.id)}" title="Delete">${trashIcon}</button>
         </div>
       `;
     })
-    .join("");
+    .join("")}
+    <div class="load-menu__separator"></div>
+    <button class="load-menu__create" type="button" data-create-project>${plusIcon} Create new</button>
+  `;
 }
 
 function escapeHtml(s: string): string {
@@ -1454,27 +1418,19 @@ function renderShell(): string {
             <span></span><span></span><span></span>
             <span></span><span></span><span></span>
           </span>
-          <span class="app-header__title">Sprite Sheet Builder</span>
-          <span class="app-header__project">· <span id="project-label">untitled</span></span>
+          <span class="app-header__title">SpriteSheetStudio</span>
         </div>
 
         <div class="app-header__actions">
-          <button id="btn-new-project" class="btn btn--secondary btn--sm" type="button">
-            ${plusIcon}
-            New
-          </button>
+          <button id="save-indicator" class="save-indicator" type="button" hidden></button>
           <div class="load-menu-wrap">
             <button id="btn-load-project" class="btn btn--secondary btn--sm" type="button">
               ${folderIcon}
-              Load
+              <span id="project-select-label">Untitled project</span>
               ${chevronIcon}
             </button>
             <div id="load-menu" class="load-menu"></div>
           </div>
-          <button id="btn-save-project" class="btn btn--secondary btn--sm" type="button">
-            ${saveIcon}
-            Save
-          </button>
         </div>
       </header>
 
@@ -1724,7 +1680,7 @@ function renderShell(): string {
                 </div>
                 <div class="quick-preview__overlay">
                   <span id="quick-preview-position" class="quick-preview__position">0 / 0</span>
-                  <button id="btn-preview-zoom-out" class="quick-preview__action" type="button" aria-label="Zoom out">−</button>
+                  <button id="btn-preview-zoom-out" class="quick-preview__action" type="button" aria-label="Zoom out">${minusIcon}</button>
                   <button id="btn-preview-zoom-reset" class="quick-preview__action quick-preview__zoom" type="button" aria-label="Reset zoom">100%</button>
                   <button id="btn-preview-zoom-in" class="quick-preview__action" type="button" aria-label="Zoom in">+</button>
                   <button id="btn-toggle-preview" class="quick-preview__action quick-preview__play" type="button">Play</button>

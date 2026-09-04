@@ -3,14 +3,14 @@ import { copyFile, mkdir, readdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { LATEST_DIR, PROJECT_FILES, ensureInsideRoot } from "./files.js";
+import { activeProjectDir, PROJECT_FILES, ensureInsideRoot } from "./files.js";
 
 export async function buildPreviewGif(
   selectedIndices: number[],
   frameSize: number,
   fps = 12,
 ): Promise<string> {
-  const framesDir = path.join(LATEST_DIR, PROJECT_FILES.framesDir);
+  const framesDir = path.join(activeProjectDir(), PROJECT_FILES.framesDir);
   ensureInsideRoot(framesDir);
   if (!existsSync(framesDir)) {
     throw new Error("no frames directory");
@@ -30,7 +30,7 @@ export async function buildPreviewGif(
   }
 
   const selectedPaths = selected.map((name) => path.join(framesDir, name));
-  const outputPath = path.join(LATEST_DIR, PROJECT_FILES.previewGif);
+  const outputPath = path.join(activeProjectDir(), PROJECT_FILES.previewGif);
   await buildGifFromFramePaths(selectedPaths, outputPath, frameSize, fps);
   return PROJECT_FILES.previewGif;
 }
@@ -45,7 +45,7 @@ export async function buildGifFromFramePaths(
   ensureInsideRoot(outputPath);
   for (const framePath of framePaths) ensureInsideRoot(framePath);
 
-  const tmpDir = path.join(LATEST_DIR, `.tmp-gif-${randomUUID()}`);
+  const tmpDir = path.join(activeProjectDir(), `.tmp-gif-${randomUUID()}`);
   ensureInsideRoot(tmpDir);
   await mkdir(tmpDir, { recursive: true });
 

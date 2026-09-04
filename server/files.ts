@@ -1,11 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT_DIR = path.resolve(__dirname, "..");
 export const PROJECTS_DIR = path.join(ROOT_DIR, "projects");
-export const LATEST_DIR = path.join(PROJECTS_DIR, "latest");
+const projectContext = new AsyncLocalStorage<string>();
 
 export const PROJECT_FILES = {
   manifest: "sprite.json",
@@ -19,6 +20,7 @@ export const PROJECT_FILES = {
 } as const;
 
 const SAFE_NAME = /^[a-zA-Z0-9_-]{1,40}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function safeProjectName(name: string): string {
   if (!SAFE_NAME.test(name)) {
@@ -34,6 +36,25 @@ export function safeProjectName(name: string): string {
 
 export function projectDir(name: string): string {
   return path.join(PROJECTS_DIR, name);
+}
+
+export function safeProjectId(id: string): string {
+  if (!UUID.test(id)) throw new Error("invalid project id");
+  return id.toLowerCase();
+}
+
+export function runInProject<T>(id: string, work: () => T): T {
+  return projectContext.run(safeProjectId(id), work);
+}
+
+export function activeProjectId(): string {
+  const id = projectContext.getStore();
+  if (!id) throw new Error("project id is required");
+  return id;
+}
+
+export function activeProjectDir(): string {
+  return projectDir(activeProjectId());
 }
 
 export async function saveBase64Image(base64: string, outputPath: string): Promise<void> {

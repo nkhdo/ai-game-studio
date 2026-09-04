@@ -45,9 +45,9 @@ Esto inicia Vite (frontend, :5173) y un servidor Express (backend, :8787) simult
 3. Haz clic en los cuadros de los fotogramas para activar o desactivar cuáles incluir.
 4. **Generate Spritesheet** → compone un PNG de 1×N en el cliente y genera una vista previa GIF en bucle en el servidor.
 5. **Export PNG** para descargar la spritesheet.
-6. Encabezado: **New** para empezar desde cero, **Save** para nombrar y guardar una instantánea del proyecto actual, **Load** para cambiar a uno guardado.
+6. Usa **Current Project** en el encabezado para crear, cambiar, renombrar o eliminar proyectos. Los borradores y las operaciones completadas se guardan automáticamente.
 
-Los artefactos generados se almacenan en `projects/` (ignorado por git). El estado de trabajo actual siempre estará en `projects/latest/`.
+Los artefactos generados se almacenan en directorios UUID dentro de `projects/` (ignorado por git). Las etiquetas editables no afectan las rutas de almacenamiento.
 
 ## Prompts de ejemplo
 

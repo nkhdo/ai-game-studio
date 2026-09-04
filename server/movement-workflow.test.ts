@@ -11,7 +11,7 @@ test("a generated video is available before movement frames exist", () => {
 
   const patch = hydrateFromView(toView(manifest));
 
-  assert.match(patch.motionVideoSrc ?? "", /\/projects\/latest\/source\.mp4/);
+  assert.match(patch.motionVideoSrc ?? "", new RegExp(`/projects/${manifest.id}/source\\.mp4`));
   assert.deepEqual(patch.frames, []);
   assert.equal(patch.appliedMotionPrompt, "walk left");
   assert.equal(patch.appliedMotionModel, "x-ai/grok-imagine-video");

@@ -22,6 +22,7 @@ export type AppStatus =
   | "extracting-frames"
   | "done"
   | "error";
+export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 export interface AppState {
   status: AppStatus;
@@ -66,7 +67,11 @@ export interface AppState {
   animations: AnimationView[];
   activeAnimationId: string | null;
   animationFps: number;
-  currentProjectName: string;
+  animationDraftName: string;
+  currentProjectId: string;
+  currentProjectLabel: string;
+  projectRevision: number;
+  saveStatus: SaveStatus;
   savedProjects: ProjectSummary[];
 }
 
@@ -114,7 +119,11 @@ export function createInitialState(): AppState {
     animations: [],
     activeAnimationId: null,
     animationFps: 12,
-    currentProjectName: "latest",
+    animationDraftName: "",
+    currentProjectId: "",
+    currentProjectLabel: "Untitled project",
+    projectRevision: 0,
+    saveStatus: "idle",
     savedProjects: [],
   };
 }
@@ -136,6 +145,7 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
     })),
     styleGuidesChanged: view.styleGuidesChanged,
     spritePaletteLock: view.spritePaletteLock ?? false,
+    spriteAcquisitionMode: view.spriteAcquisitionMode,
     spriteAcquisition: view.spriteAcquisition,
     spriteOriginalFilename: view.spriteOriginalFilename,
     backgroundSuitability: view.backgroundSuitability,
@@ -152,10 +162,10 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
     removedChromaFringePixels: view.removedChromaFringePixels ?? null,
     spriteSrc: cacheBust(view.spriteUrl, v),
     spriteDimensions: view.spriteDimensions,
-    frameSize: view.targetFrameSize?.w ?? DEFAULT_TARGET_FRAME_SIZE,
+    frameSize: view.draftFrameSize ?? view.targetFrameSize?.w ?? DEFAULT_TARGET_FRAME_SIZE,
     appliedFrameSize: view.targetFrameSize?.w ?? null,
-    subjectFillPct: view.subjectFillPct ?? DEFAULT_SUBJECT_FILL_PCT,
-    colorCount: view.targetFrameSize ? view.colorCount : DEFAULT_COLOR_COUNT,
+    subjectFillPct: view.draftSubjectFillPct ?? view.subjectFillPct ?? DEFAULT_SUBJECT_FILL_PCT,
+    colorCount: view.draftColorCount,
     subjectFillMeasured: view.subjectFillMeasured ?? null,
     frames: view.frames.map((f) => cacheBust(f, v)!),
     selectedFrameIndices: new Set(view.selectedFrameIndices),
@@ -170,7 +180,11 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
       spritesheetUrl: cacheBust(animation.spritesheetUrl, animation.updatedAt)!,
       previewGifUrl: cacheBust(animation.previewGifUrl, animation.updatedAt),
     })),
-    currentProjectName: view.name,
+    currentProjectId: view.id,
+    currentProjectLabel: view.label,
+    projectRevision: view.revision,
+    animationDraftName: view.animationDraftName,
+    animationFps: view.animationDraftFps,
   };
 }
 

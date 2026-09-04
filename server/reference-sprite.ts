@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 import { DEFAULT_VIDEO_MODEL } from "./video.js";
-import { ensureInsideRoot, LATEST_DIR, PROJECT_FILES } from "./files.js";
+import { activeProjectDir, activeProjectId, ensureInsideRoot, PROJECT_FILES } from "./files.js";
 import {
   pruneUnreferencedStyleGuides,
   readManifest,
@@ -19,9 +19,9 @@ const MAX_DIMENSION = 4096;
 const MAX_PIXELS = 16_000_000;
 const PREPARED_UPLOAD_TTL_MS = 15 * 60 * 1000;
 const CHROMA = { r: 0, g: 177, b: 64 } as const;
-const PREPARED_DIR = path.join(LATEST_DIR, ".tmp-upload");
-const PREPARED_IMAGE = path.join(PREPARED_DIR, "sprite.png");
-const PREPARED_META = path.join(PREPARED_DIR, "upload.json");
+function preparedDir() { return path.join(activeProjectDir(), ".tmp-upload"); }
+function preparedImage() { return path.join(preparedDir(), "sprite.png"); }
+function preparedMeta() { return path.join(preparedDir(), "upload.json"); }
 let preparedExpiryTimer: NodeJS.Timeout | null = null;
 
 export type BackgroundSuitability = "suitable" | "warning" | "unknown";
@@ -259,12 +259,12 @@ export async function prepareReferenceUpload(
     preparedAt: new Date().toISOString(),
   };
 
-  ensureInsideRoot(PREPARED_DIR);
-  await rm(PREPARED_DIR, { recursive: true, force: true });
-  await mkdir(PREPARED_DIR, { recursive: true });
+  ensureInsideRoot(preparedDir());
+  await rm(preparedDir(), { recursive: true, force: true });
+  await mkdir(preparedDir(), { recursive: true });
   await Promise.all([
-    writeFile(PREPARED_IMAGE, applied.buffer),
-    writeFile(PREPARED_META, JSON.stringify(prepared, null, 2)),
+    writeFile(preparedImage(), applied.buffer),
+    writeFile(preparedMeta(), JSON.stringify(prepared, null, 2)),
   ]);
   if (preparedExpiryTimer) clearTimeout(preparedExpiryTimer);
   preparedExpiryTimer = setTimeout(() => {
@@ -275,7 +275,7 @@ export async function prepareReferenceUpload(
   }, PREPARED_UPLOAD_TTL_MS);
   preparedExpiryTimer.unref();
 
-  const manifest = await readManifest("latest");
+  const manifest = await readManifest(activeProjectId());
   return {
     ...prepared,
     requiresConfirmation:
@@ -288,10 +288,10 @@ export async function prepareReferenceUpload(
 
 async function readPrepared(uploadId: string): Promise<PreparedMetadata> {
   if (!/^[0-9a-f-]{36}$/i.test(uploadId)) throw new Error("invalid prepared upload");
-  if (!existsSync(PREPARED_META) || !existsSync(PREPARED_IMAGE)) {
+  if (!existsSync(preparedMeta()) || !existsSync(preparedImage())) {
     throw new Error("prepared upload not found or expired");
   }
-  const [raw, fileStat] = await Promise.all([readFile(PREPARED_META, "utf8"), stat(PREPARED_META)]);
+  const [raw, fileStat] = await Promise.all([readFile(preparedMeta(), "utf8"), stat(preparedMeta())]);
   if (Date.now() - fileStat.mtimeMs > PREPARED_UPLOAD_TTL_MS) {
     await discardPreparedUpload();
     throw new Error("prepared upload not found or expired");
@@ -303,10 +303,10 @@ async function readPrepared(uploadId: string): Promise<PreparedMetadata> {
 
 export async function commitReferenceUpload(uploadId: string) {
   const prepared = await readPrepared(uploadId);
-  const refAbs = path.join(LATEST_DIR, PROJECT_FILES.ref);
+  const refAbs = path.join(activeProjectDir(), PROJECT_FILES.ref);
   ensureInsideRoot(refAbs);
   await mkdir(path.dirname(refAbs), { recursive: true });
-  await rename(PREPARED_IMAGE, refAbs);
+  await rename(preparedImage(), refAbs);
   await wipeLatestMotionArtifacts();
   await wipeLatestAnimations();
   await discardPreparedUpload();
@@ -344,6 +344,6 @@ export async function discardPreparedUpload(): Promise<void> {
     clearTimeout(preparedExpiryTimer);
     preparedExpiryTimer = null;
   }
-  ensureInsideRoot(PREPARED_DIR);
-  await rm(PREPARED_DIR, { recursive: true, force: true });
+  ensureInsideRoot(preparedDir());
+  await rm(preparedDir(), { recursive: true, force: true });
 }
