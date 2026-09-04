@@ -11,6 +11,9 @@ export interface ProjectView {
   motionPrompt: string;
   motionModel: string;
   paletteLock: boolean;
+  hardAlphaEdges: boolean;
+  preservedOffPalettePixels: number | null;
+  removedLowAlphaPixels: number | null;
   spriteUrl: string | null;
   spriteDimensions: { w: number; h: number } | null;
   targetFrameSize: { w: number; h: number } | null;
@@ -172,8 +175,9 @@ export function animateSprite(
   text: string,
   model?: string,
   paletteLock?: boolean,
+  hardAlphaEdges?: boolean,
 ): Promise<ProjectView> {
-  return postJson("/api/sprites/animate", { text, model, paletteLock });
+  return postJson("/api/sprites/animate", { text, model, paletteLock, hardAlphaEdges });
 }
 
 export function getVideoModels(): Promise<VideoModelsResponse> {

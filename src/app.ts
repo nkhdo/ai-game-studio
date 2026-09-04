@@ -76,6 +76,8 @@ export function mountApp(root: HTMLElement) {
   const motionModelSelect = root.querySelector<HTMLSelectElement>("#motion-model")!;
   const videoModelGuidance = root.querySelector<HTMLDivElement>("#video-model-guidance")!;
   const paletteLockInput = root.querySelector<HTMLInputElement>("#palette-lock")!;
+  const hardAlphaEdgesInput = root.querySelector<HTMLInputElement>("#hard-alpha-edges")!;
+  const paletteDiagnostics = root.querySelector<HTMLDivElement>("#palette-diagnostics")!;
   const generateFramesBtn = root.querySelector<HTMLButtonElement>("#btn-generate-frames")!;
   const framesGrid = root.querySelector<HTMLDivElement>("#frames-grid")!;
   const selectAllFramesBtn = root.querySelector<HTMLButtonElement>("#btn-select-all-frames")!;
@@ -310,6 +312,9 @@ export function mountApp(root: HTMLElement) {
   paletteLockInput.addEventListener("change", () => {
     store.set({ paletteLock: paletteLockInput.checked });
   });
+  hardAlphaEdgesInput.addEventListener("change", () => {
+    store.set({ hardAlphaEdges: hardAlphaEdgesInput.checked });
+  });
 
   generateSpriteBtn.addEventListener("click", async () => {
     const prompt = store.get().spritePrompt.trim();
@@ -373,7 +378,12 @@ export function mountApp(root: HTMLElement) {
         : `${spinner()}Generating motion video…`,
     );
     try {
-      const view = await animateSprite(text, state.motionModel, state.paletteLock);
+      const view = await animateSprite(
+        text,
+        state.motionModel,
+        state.paletteLock,
+        state.hardAlphaEdges,
+      );
       const v = view.updatedAt;
       store.set({
         status: "done",
@@ -384,8 +394,22 @@ export function mountApp(root: HTMLElement) {
         spritesheetCols: null,
         previewGifSrc: null,
         previewGifBuilding: false,
+        preservedOffPalettePixels: view.preservedOffPalettePixels,
+        removedLowAlphaPixels: view.removedLowAlphaPixels,
       });
-      setStatus(framesStatus, `Extracted ${view.frames.length} frames.`, "success");
+      const diagnostics = [
+        view.preservedOffPalettePixels
+          ? `preserved ${view.preservedOffPalettePixels.toLocaleString()} uncertain-color pixels`
+          : null,
+        view.removedLowAlphaPixels
+          ? `removed ${view.removedLowAlphaPixels.toLocaleString()} low-alpha pixels`
+          : null,
+      ].filter(Boolean);
+      setStatus(
+        framesStatus,
+        `Extracted ${view.frames.length} frames${diagnostics.length ? `; ${diagnostics.join(", ")}` : ""}.`,
+        "success",
+      );
       toast("Frames extracted");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to generate frames";
@@ -706,6 +730,18 @@ export function mountApp(root: HTMLElement) {
     spritePaletteLockInput.checked = state.spritePaletteLock;
     paletteLockInput.disabled = busy;
     paletteLockInput.checked = state.paletteLock;
+    hardAlphaEdgesInput.disabled = busy;
+    hardAlphaEdgesInput.checked = state.hardAlphaEdges;
+    const diagnosticParts = [
+      state.preservedOffPalettePixels !== null
+        ? `${state.preservedOffPalettePixels.toLocaleString()} uncertain-color pixels preserved`
+        : null,
+      state.removedLowAlphaPixels !== null
+        ? `${state.removedLowAlphaPixels.toLocaleString()} low-alpha pixels removed`
+        : null,
+    ].filter(Boolean);
+    paletteDiagnostics.textContent = diagnosticParts.join(" · ");
+    paletteDiagnostics.hidden = diagnosticParts.length === 0;
     styleGuideCount.textContent = `${state.styleGuides.length}/${MAX_STYLE_GUIDE_IMAGES}`;
     styleGuideList.innerHTML = renderStyleGuideImages(state.styleGuides, busy);
     styleGuidesInactive.hidden = state.styleGuides.length === 0;
@@ -1117,6 +1153,14 @@ function renderShell(): string {
                 <span class="style-match-row__hint">Restrict frame colors to the Reference Sprite's palette</span>
               </span>
             </label>
+            <label class="style-match-row" for="hard-alpha-edges">
+              <input id="hard-alpha-edges" class="style-match-row__input" type="checkbox" />
+              <span class="style-match-row__text">
+                <span class="style-match-row__title">Hard Alpha Edges</span>
+                <span class="style-match-row__hint">Convert extracted frames to fully opaque or fully transparent pixels</span>
+              </span>
+            </label>
+            <div id="palette-diagnostics" class="geometry-hint" hidden></div>
             <div id="video-model-guidance" class="geometry-hint"></div>
             <div id="frames-status" class="status"></div>
             <div class="motion-video-section">

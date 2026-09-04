@@ -106,6 +106,148 @@ export interface RemapOptions {
   preserveChroma?: boolean;
 }
 
+export interface FramePaletteOptions {
+  exactTolerance?: number;
+  maxDistance?: number;
+  minMatchingNeighbors?: number;
+  hardAlphaEdges?: boolean;
+}
+
+export interface FrameProcessingStats {
+  preservedOffPalettePixels: number;
+  removedLowAlphaPixels: number;
+}
+
+const DEFAULT_FRAME_OPTIONS = {
+  exactTolerance: 12,
+  maxDistance: 32,
+  minMatchingNeighbors: 2,
+} as const;
+
+function nearestPaletteMatch(
+  palette: number[][],
+  r: number,
+  g: number,
+  b: number,
+): { index: number; packed: number; distance: number } {
+  let index = 0;
+  let bestSquaredDistance = Infinity;
+  for (let i = 0; i < palette.length; i++) {
+    const [pr, pg, pb] = palette[i];
+    const dr = r - pr;
+    const dg = g - pg;
+    const db = b - pb;
+    const squaredDistance = (2 * dr * dr + 4 * dg * dg + 3 * db * db) / 9;
+    if (squaredDistance < bestSquaredDistance) {
+      bestSquaredDistance = squaredDistance;
+      index = i;
+    }
+  }
+  const [pr, pg, pb] = palette[index];
+  return {
+    index,
+    packed: (pr << 16) | (pg << 8) | pb,
+    distance: Math.sqrt(bestSquaredDistance),
+  };
+}
+
+/** Process one movement frame without changing the reference-sprite conformance behavior. */
+export async function processMovementFrame(
+  image: Buffer,
+  palette: number[][] | null,
+  options: FramePaletteOptions = {},
+): Promise<{ image: Buffer; stats: FrameProcessingStats }> {
+  const exactTolerance = options.exactTolerance ?? DEFAULT_FRAME_OPTIONS.exactTolerance;
+  const maxDistance = options.maxDistance ?? DEFAULT_FRAME_OPTIONS.maxDistance;
+  const minMatchingNeighbors =
+    options.minMatchingNeighbors ?? DEFAULT_FRAME_OPTIONS.minMatchingNeighbors;
+  const { data, info } = await sharp(image)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const stats: FrameProcessingStats = {
+    preservedOffPalettePixels: 0,
+    removedLowAlphaPixels: 0,
+  };
+
+  if (options.hardAlphaEdges) {
+    for (let offset = 0; offset < data.length; offset += 4) {
+      const alpha = data[offset + 3];
+      if (alpha < 128) {
+        if (alpha > 0) stats.removedLowAlphaPixels++;
+        data[offset] = 0;
+        data[offset + 1] = 0;
+        data[offset + 2] = 0;
+        data[offset + 3] = 0;
+      } else {
+        data[offset + 3] = 255;
+      }
+    }
+  }
+
+  if (palette) {
+    const pixelCount = info.width * info.height;
+    const indices = new Int32Array(pixelCount).fill(-1);
+    const distances = new Float32Array(pixelCount);
+    const packedColors = new Uint32Array(pixelCount);
+
+    for (let pixel = 0; pixel < pixelCount; pixel++) {
+      const offset = pixel * 4;
+      if (data[offset + 3] < 128) continue;
+      const match = nearestPaletteMatch(
+        palette,
+        data[offset],
+        data[offset + 1],
+        data[offset + 2],
+      );
+      indices[pixel] = match.index;
+      distances[pixel] = match.distance;
+      packedColors[pixel] = match.packed;
+    }
+
+    for (let pixel = 0; pixel < pixelCount; pixel++) {
+      if (indices[pixel] < 0) continue;
+      const distance = distances[pixel];
+      let accepted = distance <= exactTolerance;
+      if (!accepted && distance <= maxDistance) {
+        const x = pixel % info.width;
+        const y = Math.floor(pixel / info.width);
+        let matches = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || nx >= info.width || ny < 0 || ny >= info.height) continue;
+            const neighbor = ny * info.width + nx;
+            if (indices[neighbor] === indices[pixel] && distances[neighbor] <= maxDistance) {
+              matches++;
+            }
+          }
+        }
+        accepted = matches >= minMatchingNeighbors;
+      }
+
+      if (accepted) {
+        const packed = packedColors[pixel];
+        const offset = pixel * 4;
+        data[offset] = (packed >> 16) & 0xff;
+        data[offset + 1] = (packed >> 8) & 0xff;
+        data[offset + 2] = packed & 0xff;
+      } else {
+        stats.preservedOffPalettePixels++;
+      }
+    }
+  }
+
+  const output = await sharp(data, {
+    raw: { width: info.width, height: info.height, channels: info.channels },
+  })
+    .png()
+    .toBuffer();
+  return { image: output, stats };
+}
+
 /** Remap every pixel of `image` to the nearest palette color; returns a PNG buffer. */
 export async function remapToPalette(
   image: Buffer,
@@ -136,12 +278,24 @@ export async function remapToPalette(
 }
 
 /** Remap every frame in `framesDir` in place to the nearest Subject Palette color. */
-export async function remapFramesToPalette(framesDir: string, palette: number[][]): Promise<void> {
+export async function remapFramesToPalette(
+  framesDir: string,
+  palette: number[][] | null,
+  options: FramePaletteOptions = {},
+): Promise<FrameProcessingStats> {
   const entries = (await readdir(framesDir)).filter((f) => f.endsWith(".png")).sort();
+  const totals: FrameProcessingStats = {
+    preservedOffPalettePixels: 0,
+    removedLowAlphaPixels: 0,
+  };
   for (const entry of entries) {
     const file = path.join(framesDir, entry);
-    await writeFile(file, await remapToPalette(await readFile(file), palette));
+    const result = await processMovementFrame(await readFile(file), palette, options);
+    totals.preservedOffPalettePixels += result.stats.preservedOffPalettePixels;
+    totals.removedLowAlphaPixels += result.stats.removedLowAlphaPixels;
+    await writeFile(file, result.image);
   }
+  return totals;
 }
 
 /**

@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import {
   conformToReferencePalette,
   extractSubjectPalette,
+  processMovementFrame,
   remapFramesToPalette,
 } from "./palette-lock.js";
 
@@ -44,29 +45,95 @@ test("rejects a sprite with no subject colors", async () => {
   await assert.rejects(extractSubjectPalette(sprite), /no usable subject colors/);
 });
 
-test("remaps off-palette pixels to the nearest palette color and preserves alpha", async () => {
+test("conservatively remaps supported colors and preserves uncertain source colors", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "palette-lock-"));
-  const frame = await rawToPng(3, 1, [
-    // off-palette orange → maps to red
-    250, 128, 0, 255,
-    // off-palette at partial alpha → RGB remapped, alpha untouched
-    250, 128, 0, 200,
-    // fully transparent → untouched
-    0x00, 0xb1, 0x40, 0,
+  const frame = await rawToPng(4, 1, [
+    // Three supported near-red pixels map to red.
+    255, 0, 0, 255,
+    230, 10, 10, 255,
+    255, 0, 0, 255,
+    // A distant color is retained.
+    180, 30, 30, 255,
   ]);
   await writeFile(path.join(dir, "frame-00001.png"), frame);
 
-  await remapFramesToPalette(dir, [[255, 0, 0], [0, 0, 255]]);
+  const stats = await remapFramesToPalette(dir, [[255, 0, 0], [0, 0, 255]]);
 
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".png"));
-  assert.deepEqual(files, ["frame-00001.png"]);
-  const { data } = await sharp(await readFile(path.join(dir, files[0])))
+  assert.equal(stats.preservedOffPalettePixels, 1);
+  const { data } = await sharp(await readFile(path.join(dir, "frame-00001.png")))
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
-  assert.deepEqual([...data.slice(0, 4)], [255, 0, 0, 255]);
-  assert.deepEqual([...data.slice(4, 8)], [255, 0, 0, 200]);
+  assert.deepEqual([...data.slice(0, 12)], [
+    255, 0, 0, 255,
+    255, 0, 0, 255,
+    255, 0, 0, 255,
+  ]);
+  assert.deepEqual([...data.slice(12, 16)], [180, 30, 30, 255]);
+});
+
+test("uses actual pixel distance and rejects an isolated mid-distance candidate", async () => {
+  const frame = await rawToPng(3, 1, [
+    12, 12, 12, 255,
+    13, 13, 13, 255,
+    0x00, 0xb1, 0x40, 0,
+  ]);
+  const result = await processMovementFrame(frame, [[0, 0, 0]]);
+  const { data } = await sharp(result.image)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  assert.deepEqual([...data.slice(0, 4)], [0, 0, 0, 255]);
+  assert.deepEqual([...data.slice(4, 8)], [13, 13, 13, 255]);
   assert.deepEqual([...data.slice(8, 12)], [0x00, 0xb1, 0x40, 0]);
+  assert.equal(result.stats.preservedOffPalettePixels, 1);
+});
+
+test("hard alpha removes fringes before palette matching and makes subject opaque", async () => {
+  const frame = await rawToPng(3, 1, [
+    250, 0, 0, 127,
+    250, 0, 0, 128,
+    0, 0, 0, 0,
+  ]);
+  const result = await processMovementFrame(frame, [[255, 0, 0]], {
+    hardAlphaEdges: true,
+  });
+  const { data } = await sharp(result.image)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  assert.deepEqual([...data.slice(0, 4)], [0, 0, 0, 0]);
+  assert.deepEqual([...data.slice(4, 8)], [255, 0, 0, 255]);
+  assert.deepEqual([...data.slice(8, 12)], [0, 0, 0, 0]);
+  assert.equal(result.stats.removedLowAlphaPixels, 1);
+});
+
+test("transparent neighbors do not support a mid-distance remap", async () => {
+  const frame = await rawToPng(3, 1, [
+    230, 10, 10, 0,
+    230, 10, 10, 255,
+    230, 10, 10, 0,
+  ]);
+  const result = await processMovementFrame(frame, [[255, 0, 0]]);
+  const data = await sharp(result.image).ensureAlpha().raw().toBuffer();
+  assert.deepEqual([...data.slice(4, 8)], [230, 10, 10, 255]);
+  assert.equal(result.stats.preservedOffPalettePixels, 1);
+});
+
+test("neighbor decisions use the immutable input instead of remapped output", async () => {
+  const frame = await rawToPng(3, 1, [
+    230, 10, 10, 255,
+    230, 10, 10, 255,
+    255, 0, 0, 255,
+  ]);
+  const result = await processMovementFrame(frame, [[255, 0, 0]]);
+  const data = await sharp(result.image).ensureAlpha().raw().toBuffer();
+  // The left edge has only one matching neighbor in the original candidate pass.
+  assert.deepEqual([...data.slice(0, 4)], [230, 10, 10, 255]);
+  assert.deepEqual([...data.slice(4, 12)], [
+    255, 0, 0, 255,
+    255, 0, 0, 255,
+  ]);
 });
 
 test("conforms a generated sprite to the union palette of reference images, preserving chroma", async () => {
