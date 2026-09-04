@@ -14,6 +14,7 @@ export interface ProjectView {
   hardAlphaEdges: boolean;
   preservedOffPalettePixels: number | null;
   removedLowAlphaPixels: number | null;
+  removedChromaFringePixels: number | null;
   spriteUrl: string | null;
   spriteDimensions: { w: number; h: number } | null;
   targetFrameSize: { w: number; h: number } | null;

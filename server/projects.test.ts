@@ -24,12 +24,15 @@ test("frame cleanup fields default safely and round-trip through the view", () =
   assert.equal(manifest.hardAlphaEdges, false);
   assert.equal(manifest.preservedOffPalettePixels, null);
   assert.equal(manifest.removedLowAlphaPixels, null);
+  assert.equal(manifest.removedChromaFringePixels, null);
 
   manifest.hardAlphaEdges = true;
   manifest.preservedOffPalettePixels = 42;
   manifest.removedLowAlphaPixels = 7;
+  manifest.removedChromaFringePixels = 3;
   const view = toView(manifest);
   assert.equal(view.hardAlphaEdges, true);
   assert.equal(view.preservedOffPalettePixels, 42);
   assert.equal(view.removedLowAlphaPixels, 7);
+  assert.equal(view.removedChromaFringePixels, 3);
 });

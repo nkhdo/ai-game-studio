@@ -396,6 +396,7 @@ export function mountApp(root: HTMLElement) {
         previewGifBuilding: false,
         preservedOffPalettePixels: view.preservedOffPalettePixels,
         removedLowAlphaPixels: view.removedLowAlphaPixels,
+        removedChromaFringePixels: view.removedChromaFringePixels,
       });
       const diagnostics = [
         view.preservedOffPalettePixels
@@ -403,6 +404,9 @@ export function mountApp(root: HTMLElement) {
           : null,
         view.removedLowAlphaPixels
           ? `removed ${view.removedLowAlphaPixels.toLocaleString()} low-alpha pixels`
+          : null,
+        view.removedChromaFringePixels
+          ? `removed ${view.removedChromaFringePixels.toLocaleString()} chroma-fringe pixels`
           : null,
       ].filter(Boolean);
       setStatus(
@@ -738,6 +742,9 @@ export function mountApp(root: HTMLElement) {
         : null,
       state.removedLowAlphaPixels !== null
         ? `${state.removedLowAlphaPixels.toLocaleString()} low-alpha pixels removed`
+        : null,
+      state.removedChromaFringePixels !== null
+        ? `${state.removedChromaFringePixels.toLocaleString()} chroma-fringe pixels removed`
         : null,
     ].filter(Boolean);
     paletteDiagnostics.textContent = diagnosticParts.join(" · ");

@@ -323,6 +323,7 @@ export async function commitReferenceUpload(uploadId: string) {
     previewGif: null,
     preservedOffPalettePixels: null,
     removedLowAlphaPixels: null,
+    removedChromaFringePixels: null,
   });
   manifest = await pruneUnreferencedStyleGuides(manifest);
   return toView(manifest);
