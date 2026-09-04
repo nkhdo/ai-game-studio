@@ -5,13 +5,15 @@ export type WorkflowStep = (typeof STEP_NAMES)[number];
 export interface NavigationState {
   project: string | null;
   step: WorkflowStep | null;
+  animation: string | null;
 }
 
 export function parseNavigation(url: URL): NavigationState {
   const project = url.searchParams.get("project");
   const rawStep = url.searchParams.get("step");
   const step = STEP_NAMES.find((candidate) => candidate === rawStep) ?? null;
-  return { project: project || null, step };
+  const animation = url.searchParams.get("animation");
+  return { project: project || null, step, animation: animation || null };
 }
 
 export function stepNumber(step: WorkflowStep): number {
@@ -24,7 +26,7 @@ export function stepName(step: number): WorkflowStep {
 
 export function withNavigation(
   current: URL,
-  navigation: { project?: string | null; step?: WorkflowStep },
+  navigation: { project?: string | null; step?: WorkflowStep; animation?: string | null },
 ): URL {
   const next = new URL(current);
   if (navigation.project !== undefined) {
@@ -32,5 +34,9 @@ export function withNavigation(
     else next.searchParams.delete("project");
   }
   if (navigation.step !== undefined) next.searchParams.set("step", navigation.step);
+  if (navigation.animation !== undefined) {
+    if (navigation.animation) next.searchParams.set("animation", navigation.animation);
+    else next.searchParams.delete("animation");
+  }
   return next;
 }

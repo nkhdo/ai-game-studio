@@ -45,6 +45,7 @@ import {
   pruneUnreferencedStyleGuides,
   toView,
   updateLatest,
+  wipeLatestAnimations,
   wipeLatestFramesAndSheet,
   wipeLatestMotionArtifacts,
   wipeLatestSpritesheet,
@@ -60,6 +61,7 @@ import {
   parseTargetGeometry,
 } from "./reference-sprite.js";
 import { conformToReferencePalette, dataUrlToBuffer } from "./palette-lock.js";
+import { createAnimation, deleteAnimation, updateAnimation } from "./animations.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const HAS_KEY = Boolean(process.env.OPENROUTER_API_KEY);
@@ -197,6 +199,42 @@ app.post("/api/projects/spritesheet", async (req, res) => {
   }
 });
 
+function animationInput(body: Record<string, unknown>) {
+  return {
+    name: typeof body.name === "string" ? body.name : "",
+    frameIndices: Array.isArray(body.frameIndices) ? body.frameIndices as number[] : [],
+    fps: Number(body.fps),
+    dataUrl: typeof body.dataUrl === "string" ? body.dataUrl : "",
+    sourceAnimationId: typeof body.sourceAnimationId === "string" ? body.sourceAnimationId : undefined,
+  };
+}
+
+app.post("/api/projects/animations", async (req, res) => {
+  try {
+    res.json(await createAnimation(animationInput(req.body ?? {})));
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+app.post("/api/projects/animations/update", async (req, res) => {
+  try {
+    const id = asString(req.body?.id, "animation id", 80);
+    res.json(await updateAnimation(id, animationInput(req.body ?? {})));
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+app.post("/api/projects/animations/delete", async (req, res) => {
+  try {
+    const id = asString(req.body?.id, "animation id", 80);
+    res.json(await deleteAnimation(id));
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
 app.post("/api/sprites/style-guides", imageUpload.single("image"), async (req, res) => {
   try {
     if (!req.file) throw new Error("image file is required");
@@ -266,6 +304,7 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
 
     // A replacement sprite invalidates its video and every downstream artifact.
     await wipeLatestMotionArtifacts();
+    await wipeLatestAnimations();
 
     const refAbs = path.join(LATEST_DIR, PROJECT_FILES.ref);
     await saveBase64Image(base64, refAbs);
@@ -293,6 +332,7 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       selectedFrameIndices: [],
       spritesheet: null,
       previewGif: null,
+      animations: [],
       preservedOffPalettePixels: null,
       removedLowAlphaPixels: null,
       removedChromaFringePixels: null,

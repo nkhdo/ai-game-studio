@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { copyFile, mkdir, readdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { LATEST_DIR, PROJECT_FILES, ensureInsideRoot } from "./files.js";
 
 export async function buildPreviewGif(
@@ -28,20 +29,34 @@ export async function buildPreviewGif(
     throw new Error("no frames selected for gif");
   }
 
-  const tmpDir = path.join(LATEST_DIR, ".tmp-gif");
+  const selectedPaths = selected.map((name) => path.join(framesDir, name));
+  const outputPath = path.join(LATEST_DIR, PROJECT_FILES.previewGif);
+  await buildGifFromFramePaths(selectedPaths, outputPath, frameSize, fps);
+  return PROJECT_FILES.previewGif;
+}
+
+export async function buildGifFromFramePaths(
+  framePaths: string[],
+  outputPath: string,
+  frameSize: number,
+  fps = 12,
+): Promise<void> {
+  if (framePaths.length === 0) throw new Error("no frames selected for gif");
+  ensureInsideRoot(outputPath);
+  for (const framePath of framePaths) ensureInsideRoot(framePath);
+
+  const tmpDir = path.join(LATEST_DIR, `.tmp-gif-${randomUUID()}`);
   ensureInsideRoot(tmpDir);
-  if (existsSync(tmpDir)) await rm(tmpDir, { recursive: true, force: true });
   await mkdir(tmpDir, { recursive: true });
 
   await Promise.all(
-    selected.map((name, i) => {
-      const src = path.join(framesDir, name);
+    framePaths.map((src, i) => {
       const dst = path.join(tmpDir, `frame-${String(i + 1).padStart(5, "0")}.png`);
       return copyFile(src, dst);
     }),
   );
 
-  const outputPath = path.join(LATEST_DIR, PROJECT_FILES.previewGif);
+  await mkdir(path.dirname(outputPath), { recursive: true });
   if (existsSync(outputPath)) await rm(outputPath);
 
   const filter = previewGifFilter(frameSize);
@@ -68,8 +83,6 @@ export async function buildPreviewGif(
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }
-
-  return PROJECT_FILES.previewGif;
 }
 
 export function previewGifFilter(frameSize: number): string {

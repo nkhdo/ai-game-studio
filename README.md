@@ -1,6 +1,6 @@
 # AI Game Studio
 
-A local web app — and the start of a fuller AI Game Studio — for creating game assets from generated or uploaded source images. Today: 2D reference sprites and animation frames composed into a 1×N spritesheet with a looping animated preview. Backgrounds are chroma-keyed to transparency automatically, so frames drop straight into a game engine. Projects can be saved and loaded by name.
+A local web app — and the start of a fuller AI Game Studio — for creating game assets from generated or uploaded source images. Today: 2D reference sprites and reusable named Animations composed from generated Movement Frames. Backgrounds are chroma-keyed to transparency automatically, so frames drop straight into a game engine. Projects can be saved and loaded by name.
 
 The app talks to [OpenRouter](https://openrouter.ai) as the single boundary to the model providers. One key gives access to 300+ image / video / audio / text models, which is the runway for everything on the TO-DO list (backgrounds, tilemaps, SFX, music, voice, …).
 
@@ -42,8 +42,9 @@ This starts Vite (frontend, :5173) and an Express server (backend, :8787) togeth
 2. Pick a video model and type a motion prompt in column 2 → **Generate Video** (calls image-to-video via OpenRouter and retains the downloaded source video).
 3. Choose Palette Lock and Hard Alpha Edges options → **Generate Frames** (locally extracts transparent PNGs from the retained video without another model call).
 4. Click frame tiles to toggle which ones to include.
-5. **Generate Spritesheet** → composes a 1×N PNG client-side, builds a looping GIF preview server-side.
-6. **Export PNG** to download the spritesheet.
+5. **Select frames** → previews the Animation Draft immediately at the chosen FPS.
+6. **Save as New** → freezes the selected frames and creates a named Animation with a 1×N spritesheet and looping GIF.
+7. Reopen, update, export, or delete any saved Animation from the project library.
 7. Header: **New** to start fresh, **Save** to name and snapshot the current project, **Load** to switch to a saved one.
 
 Generated artifacts live under `projects/` (gitignored). The current working state is always in `projects/latest/`.

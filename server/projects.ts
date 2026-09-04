@@ -17,6 +17,24 @@ export interface StyleGuideImage {
   path: string;
 }
 
+export interface AnimationManifest {
+  id: string;
+  name: string;
+  frameIndices: number[];
+  frames: string[];
+  fps: number;
+  spritesheet: string;
+  previewGif: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnimationView extends Omit<AnimationManifest, "frames" | "spritesheet" | "previewGif"> {
+  frameUrls: string[];
+  spritesheetUrl: string;
+  previewGifUrl: string | null;
+}
+
 export interface ProjectManifest {
   name: string;
   spritePrompt: string;
@@ -46,6 +64,7 @@ export interface ProjectManifest {
   selectedFrameIndices: number[];
   spritesheet: string | null;
   previewGif: string | null;
+  animations: AnimationManifest[];
   updatedAt: string;
 }
 
@@ -81,6 +100,7 @@ export interface ProjectView {
   sourceVideoUrl: string | null;
   spritesheetUrl: string | null;
   previewGifUrl: string | null;
+  animations: AnimationView[];
   updatedAt: string;
 }
 
@@ -114,6 +134,7 @@ export function emptyManifest(name = "latest"): ProjectManifest {
     selectedFrameIndices: [],
     spritesheet: null,
     previewGif: null,
+    animations: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -132,6 +153,20 @@ export async function readManifest(dirName: string): Promise<ProjectManifest> {
     const raw = await readFile(p, "utf8");
     const parsed = JSON.parse(raw) as Partial<ProjectManifest>;
     const hydrated = { ...emptyManifest(dirName), ...parsed };
+    hydrated.animations = Array.isArray(parsed.animations) ? parsed.animations : [];
+    if (hydrated.animations.length === 0 && hydrated.spritesheet) {
+      hydrated.animations = [{
+        id: "legacy",
+        name: "animation-1",
+        frameIndices: [...hydrated.selectedFrameIndices],
+        frames: hydrated.selectedFrameIndices.flatMap((index) => hydrated.frames[index] ? [hydrated.frames[index]] : []),
+        fps: 12,
+        spritesheet: hydrated.spritesheet,
+        previewGif: hydrated.previewGif,
+        createdAt: hydrated.updatedAt,
+        updatedAt: hydrated.updatedAt,
+      }];
+    }
     if (!hydrated.spriteAcquisition && hydrated.sprite) hydrated.spriteAcquisition = "generated";
     // Older manifests inferred source.mp4 from the presence of frames.
     if (parsed.sourceVideo === undefined && hydrated.frames.length > 0) {
@@ -203,6 +238,17 @@ export function toView(m: ProjectManifest): ProjectView {
     sourceVideoUrl: m.sourceVideo ? base + m.sourceVideo : null,
     spritesheetUrl: m.spritesheet ? base + m.spritesheet : null,
     previewGifUrl: m.previewGif ? base + m.previewGif : null,
+    animations: m.animations.map((animation) => ({
+      id: animation.id,
+      name: animation.name,
+      frameIndices: animation.frameIndices,
+      frameUrls: animation.frames.map((frame) => base + frame),
+      fps: animation.fps,
+      spritesheetUrl: base + animation.spritesheet,
+      previewGifUrl: animation.previewGif ? base + animation.previewGif : null,
+      createdAt: animation.createdAt,
+      updatedAt: animation.updatedAt,
+    })),
     updatedAt: m.updatedAt,
   };
 }
@@ -247,6 +293,14 @@ export async function wipeLatestSpritesheet(): Promise<void> {
   if (existsSync(sheet)) await rm(sheet);
   const gif = path.join(LATEST_DIR, PROJECT_FILES.previewGif);
   if (existsSync(gif)) await rm(gif);
+}
+
+export async function wipeLatestAnimations(): Promise<void> {
+  const animationsDir = path.join(LATEST_DIR, PROJECT_FILES.animationsDir);
+  ensureInsideRoot(animationsDir);
+  if (existsSync(animationsDir)) {
+    await rm(animationsDir, { recursive: true, force: true });
+  }
 }
 
 export async function listSavedProjects(): Promise<{ name: string; updatedAt: string }[]> {

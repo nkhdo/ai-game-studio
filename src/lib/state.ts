@@ -1,5 +1,6 @@
 import type {
   ImageModelOption,
+  AnimationView,
   ProjectSummary,
   ProjectView,
   StyleGuideImageView,
@@ -62,6 +63,9 @@ export interface AppState {
   spritesheetCols: number | null;
   previewGifSrc: string | null;
   previewGifBuilding: boolean;
+  animations: AnimationView[];
+  activeAnimationId: string | null;
+  animationFps: number;
   currentProjectName: string;
   savedProjects: ProjectSummary[];
 }
@@ -107,6 +111,9 @@ export function createInitialState(): AppState {
     spritesheetCols: null,
     previewGifSrc: null,
     previewGifBuilding: false,
+    animations: [],
+    activeAnimationId: null,
+    animationFps: 12,
     currentProjectName: "latest",
     savedProjects: [],
   };
@@ -157,6 +164,12 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
     spritesheetCols: view.spritesheetUrl ? view.selectedFrameIndices.length : null,
     previewGifSrc: cacheBust(view.previewGifUrl, v),
     previewGifBuilding: false,
+    animations: view.animations.map((animation) => ({
+      ...animation,
+      frameUrls: animation.frameUrls.map((url) => cacheBust(url, animation.updatedAt)!),
+      spritesheetUrl: cacheBust(animation.spritesheetUrl, animation.updatedAt)!,
+      previewGifUrl: cacheBust(animation.previewGifUrl, animation.updatedAt),
+    })),
     currentProjectName: view.name,
   };
 }

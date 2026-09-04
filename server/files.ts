@@ -13,6 +13,7 @@ export const PROJECT_FILES = {
   source: "source.mp4",
   styleGuidesDir: "style-guides",
   framesDir: "frames",
+  animationsDir: "animations",
   spritesheet: "spritesheet.png",
   previewGif: "preview.gif",
 } as const;

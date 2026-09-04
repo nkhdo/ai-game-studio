@@ -33,8 +33,24 @@ A heuristic assessment of whether a Reference Sprite's outer background is suffi
 _Avoid_: Background validity, chroma validation
 
 **Downstream Artifacts**:
-Movement frames, spritesheets, and animated previews derived from the current Reference Sprite.
+Movement Frames, Animations, spritesheets, and animated previews derived from the current Reference Sprite.
 _Avoid_: Outputs when specifically referring to derived project artifacts
+
+**Movement Frames**:
+The replaceable sequence of images extracted from the project's current generated video. They are source material for Animation Drafts, not durable Animation content.
+_Avoid_: Animation frames, source frames
+
+**Animation Draft**:
+The ordered Frame Sequence and playback rate currently being edited and previewed. It is transient until it creates or updates an Animation.
+_Avoid_: Current selection, pending spritesheet
+
+**Animation**:
+A project-scoped, named game asset containing an ordered Frame Sequence, playback rate, spritesheet, and animated preview. It owns a frozen copy of its selected Movement Frames and therefore survives later video generation from the same Reference Sprite.
+_Avoid_: Spritesheet when referring to the complete saved asset, animation clip
+
+**Frame Sequence**:
+The ordered list of Movement Frames in an Animation Draft or Animation. Order and repeated frames are meaningful.
+_Avoid_: Frame selection, selected frame set
 
 **Subject Palette**:
 The set of colors present in the opaque, non-background pixels of the current Reference Sprite. The chroma-green background color is never part of the Subject Palette, regardless of how much of the image it covers.
