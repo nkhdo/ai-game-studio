@@ -11,6 +11,7 @@ import {
   toView,
   updateLatest,
   wipeLatestMotionArtifacts,
+  wipeLatestAnimations,
 } from "./projects.js";
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -280,7 +281,8 @@ export async function prepareReferenceUpload(
     requiresConfirmation:
       Boolean(manifest.sourceVideo) ||
       manifest.frames.length > 0 ||
-      Boolean(manifest.spritesheet || manifest.previewGif),
+      Boolean(manifest.spritesheet || manifest.previewGif) ||
+      manifest.animations.length > 0,
   };
 }
 
@@ -306,6 +308,7 @@ export async function commitReferenceUpload(uploadId: string) {
   await mkdir(path.dirname(refAbs), { recursive: true });
   await rename(PREPARED_IMAGE, refAbs);
   await wipeLatestMotionArtifacts();
+  await wipeLatestAnimations();
   await discardPreparedUpload();
 
   let manifest = await updateLatest({
@@ -327,6 +330,7 @@ export async function commitReferenceUpload(uploadId: string) {
     selectedFrameIndices: [],
     spritesheet: null,
     previewGif: null,
+    animations: [],
     preservedOffPalettePixels: null,
     removedLowAlphaPixels: null,
     removedChromaFringePixels: null,

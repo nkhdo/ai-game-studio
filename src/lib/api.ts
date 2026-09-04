@@ -26,6 +26,19 @@ export interface ProjectView {
   sourceVideoUrl: string | null;
   spritesheetUrl: string | null;
   previewGifUrl: string | null;
+  animations: AnimationView[];
+  updatedAt: string;
+}
+
+export interface AnimationView {
+  id: string;
+  name: string;
+  frameIndices: number[];
+  frameUrls: string[];
+  fps: number;
+  spritesheetUrl: string;
+  previewGifUrl: string | null;
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -224,6 +237,26 @@ export function saveSelection(selectedIndices: number[]): Promise<ProjectView> {
 
 export function saveSpritesheet(dataUrl: string): Promise<ProjectView> {
   return postJson("/api/projects/spritesheet", { dataUrl });
+}
+
+export interface AnimationSaveInput {
+  name: string;
+  frameIndices: number[];
+  fps: number;
+  dataUrl: string;
+  sourceAnimationId?: string;
+}
+
+export function createAnimation(input: AnimationSaveInput): Promise<ProjectView> {
+  return postJson("/api/projects/animations", input);
+}
+
+export function updateAnimation(id: string, input: AnimationSaveInput): Promise<ProjectView> {
+  return postJson("/api/projects/animations/update", { id, ...input });
+}
+
+export function deleteAnimation(id: string): Promise<ProjectView> {
+  return postJson("/api/projects/animations/delete", { id });
 }
 
 export async function checkHealth(): Promise<{ ok: boolean; hasApiKey: boolean }> {

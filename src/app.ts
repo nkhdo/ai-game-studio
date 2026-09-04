@@ -1,6 +1,8 @@
 import {
   checkHealth,
   commitSpriteUpload,
+  createAnimation,
+  deleteAnimation,
   deleteProject,
   discardSpriteUpload,
   generateSprite,
@@ -16,9 +18,9 @@ import {
   removeStyleGuide,
   saveProject,
   saveSelection,
-  saveSpritesheet,
   type StyleGuideImageView,
   uploadStyleGuide,
+  updateAnimation,
 } from "./lib/api";
 import { Store, createInitialState, hydrateFromView } from "./lib/state";
 import {
@@ -28,13 +30,11 @@ import {
   withNavigation,
   type WorkflowStep,
 } from "./lib/navigation";
-import { composeSpritesheet, downloadDataUrl, loadImage } from "./lib/spritesheet";
+import { composeSpritesheet, loadImage } from "./lib/spritesheet";
 import {
   chevronIcon,
-  downloadIcon,
   folderIcon,
   frameIcon,
-  gridIcon,
   plusIcon,
   saveIcon,
   sparkleIcon,
@@ -103,12 +103,20 @@ export function mountApp(root: HTMLElement) {
   const deselectAllFramesBtn = root.querySelector<HTMLButtonElement>("#btn-deselect-all-frames")!;
   const framesStatus = root.querySelector<HTMLDivElement>("#frames-status")!;
   const motionVideoPreview = root.querySelector<HTMLDivElement>("#motion-video-preview")!;
-  const generateSheetBtn = root.querySelector<HTMLButtonElement>("#btn-generate-sheet")!;
-
-  const sheetPreview = root.querySelector<HTMLDivElement>("#sheet-preview")!;
-  const sheetMeta = root.querySelector<HTMLDivElement>("#sheet-meta")!;
-  const exportBtn = root.querySelector<HTMLButtonElement>("#btn-export")!;
-  const gifPreview = root.querySelector<HTMLDivElement>("#gif-preview")!;
+  const quickPreviewStage = root.querySelector<HTMLDivElement>("#quick-preview-stage")!;
+  const quickPreviewCount = root.querySelector<HTMLSpanElement>("#quick-preview-count")!;
+  const quickPreviewPosition = root.querySelector<HTMLSpanElement>("#quick-preview-position")!;
+  const quickPreviewToggle = root.querySelector<HTMLButtonElement>("#btn-toggle-preview")!;
+  const zoomOutBtn = root.querySelector<HTMLButtonElement>("#btn-preview-zoom-out")!;
+  const zoomResetBtn = root.querySelector<HTMLButtonElement>("#btn-preview-zoom-reset")!;
+  const zoomInBtn = root.querySelector<HTMLButtonElement>("#btn-preview-zoom-in")!;
+  const animationNameInput = root.querySelector<HTMLInputElement>("#animation-name")!;
+  const animationFpsInput = root.querySelector<HTMLInputElement>("#animation-fps")!;
+  const saveAnimationBtn = root.querySelector<HTMLButtonElement>("#btn-save-animation")!;
+  const updateAnimationBtn = root.querySelector<HTMLButtonElement>("#btn-update-animation")!;
+  const newAnimationBtn = root.querySelector<HTMLButtonElement>("#btn-new-animation")!;
+  const animationsList = root.querySelector<HTMLDivElement>("#animations-list")!;
+  const animationStatus = root.querySelector<HTMLDivElement>("#animation-status")!;
 
   const projectLabel = root.querySelector<HTMLSpanElement>("#project-label")!;
   const newBtn = root.querySelector<HTMLButtonElement>("#btn-new-project")!;
@@ -124,7 +132,11 @@ export function mountApp(root: HTMLElement) {
     project: string | null,
     step: WorkflowStep = stepName(activeStep),
   ) {
-    const next = withNavigation(new URL(window.location.href), { project, step });
+    const next = withNavigation(new URL(window.location.href), {
+      project,
+      step,
+      animation: store.get().activeAnimationId,
+    });
     window.history[mode === "push" ? "pushState" : "replaceState"]({}, "", next);
   }
 
@@ -335,7 +347,7 @@ export function mountApp(root: HTMLElement) {
       if (
         prepared.requiresConfirmation &&
         !window.confirm(
-          "Replace the Reference Sprite? Existing video, movement frames, and spritesheet will be removed.",
+          "Replace the Reference Sprite? Existing video, Movement Frames, and saved Animations will be removed.",
         )
       ) {
         await discardSpriteUpload();
@@ -346,8 +358,10 @@ export function mountApp(root: HTMLElement) {
       const view = await commitSpriteUpload(prepared.uploadId);
       lastView = view;
       hasUnsavedInput = true;
+      frozenDraftFrames = null;
+      animationNameInput.value = "";
       const patch = hydrateFromView(view);
-      store.set({ ...patch, spritePrompt: promptDraft, status: "idle", errorMessage: null });
+      store.set({ ...patch, activeAnimationId: null, spritePrompt: promptDraft, status: "idle", errorMessage: null });
       promptInput.value = promptDraft;
       motionInput.value = view.motionPrompt;
       setStatus(spriteStatus, "Reference sprite uploaded.", "success");
@@ -388,6 +402,10 @@ export function mountApp(root: HTMLElement) {
       setStatus(spriteStatus, "Enter a sprite prompt first.", "error");
       return;
     }
+    if (
+      store.get().animations.length > 0 &&
+      !window.confirm("Replace the Reference Sprite? All saved Animations will be removed.")
+    ) return;
     store.set({ status: "generating-image", errorMessage: null });
     setStatus(spriteStatus, `${spinner()}Generating reference sprite…`);
     try {
@@ -399,10 +417,13 @@ export function mountApp(root: HTMLElement) {
       }, state.spritePaletteLock);
       lastView = result.view;
       hasUnsavedInput = true;
+      frozenDraftFrames = null;
+      animationNameInput.value = "";
       const img = await loadImage(result.dataUrl);
       const patch = hydrateFromView(result.view);
       store.set({
         ...patch,
+        activeAnimationId: null,
         status: "idle",
         errorMessage: null,
         spriteSrc: result.dataUrl,
@@ -460,7 +481,9 @@ export function mountApp(root: HTMLElement) {
       const view = await generateMotionVideo(text, state.motionModel);
       lastView = view;
       hasUnsavedInput = true;
-      store.set({ ...hydrateFromView(view), status: "done", errorMessage: null });
+      frozenDraftFrames = null;
+      animationNameInput.value = "";
+      store.set({ ...hydrateFromView(view), activeAnimationId: null, status: "done", errorMessage: null });
       setStatus(videoStatus, "Video ready — choose frame options in step 2.2.", "success");
       setStatus(framesStatus, "Choose frame options, then generate frames.");
       toast("Movement video generated");
@@ -486,8 +509,10 @@ export function mountApp(root: HTMLElement) {
       const view = await generateMovementFrames(state.paletteLock, state.hardAlphaEdges);
       lastView = view;
       hasUnsavedInput = true;
+      frozenDraftFrames = null;
+      animationNameInput.value = "";
       const patch = hydrateFromView(view);
-      store.set({ ...patch, status: "done", errorMessage: null });
+      store.set({ ...patch, activeAnimationId: null, status: "done", errorMessage: null });
       setStatus(framesStatus, `Generated ${view.frames.length} frames.`, "success");
       toast("Frames generated");
       framesHeading.focus({ preventScroll: true });
@@ -509,6 +534,7 @@ export function mountApp(root: HTMLElement) {
     const state = store.get();
     if (index >= state.frames.length) return;
     const next = new Set(state.selectedFrameIndices);
+    frozenDraftFrames = null;
     if (next.has(index)) next.delete(index);
     else next.add(index);
     hasUnsavedInput = true;
@@ -520,6 +546,7 @@ export function mountApp(root: HTMLElement) {
     const state = store.get();
     if (state.frames.length === 0) return;
     hasUnsavedInput = true;
+    frozenDraftFrames = null;
     store.set({
       selectedFrameIndices: new Set(state.frames.map((_, i) => i)),
     });
@@ -529,82 +556,230 @@ export function mountApp(root: HTMLElement) {
   deselectAllFramesBtn.addEventListener("click", () => {
     if (store.get().selectedFrameIndices.size === 0) return;
     hasUnsavedInput = true;
+    frozenDraftFrames = null;
     store.set({ selectedFrameIndices: new Set<number>() });
     scheduleSelectionPersist();
   });
 
-  generateSheetBtn.addEventListener("click", async () => {
+  let quickPreviewTimer: number | undefined;
+  let quickPreviewKey = "";
+  let quickPreviewPlaying = false;
+  let quickPreviewZoom = 1;
+  let frozenDraftFrames: string[] | null = null;
+  quickPreviewToggle.textContent = quickPreviewPlaying ? "Pause" : "Play";
+
+  function currentDraftIndices() {
+    if (frozenDraftFrames && store.get().activeAnimationId) {
+      const active = store.get().animations.find(
+        (animation) => animation.id === store.get().activeAnimationId,
+      );
+      if (active) return [...active.frameIndices];
+    }
+    return [...store.get().selectedFrameIndices].sort((a, b) => a - b);
+  }
+
+  function currentDraftFrames() {
+    if (frozenDraftFrames) return frozenDraftFrames;
     const state = store.get();
-    const selected = [...state.selectedFrameIndices]
-      .sort((a, b) => a - b)
-      .map((i) => state.frames[i])
-      .filter(Boolean);
-    if (selected.length === 0) {
-      setStatus(framesStatus, "Select at least one frame to include.", "error");
+    return currentDraftIndices().flatMap((index) => state.frames[index] ? [state.frames[index]] : []);
+  }
+
+  function renderQuickPreview() {
+    const state = store.get();
+    const frames = currentDraftFrames();
+    quickPreviewCount.textContent = `${frames.length} frame${frames.length === 1 ? "" : "s"}`;
+    const key = `${frames.join("|")}|${state.animationFps}|${quickPreviewPlaying}`;
+    if (key === quickPreviewKey) return;
+    quickPreviewKey = key;
+    if (quickPreviewTimer) window.clearInterval(quickPreviewTimer);
+    quickPreviewTimer = undefined;
+    if (frames.length === 0) {
+      quickPreviewPosition.textContent = "0 / 0";
+      quickPreviewStage.innerHTML = '<span class="gif-preview__placeholder">Select frames to preview immediately</span>';
       return;
     }
-    setStatus(framesStatus, `${spinner()}Composing spritesheet…`);
-    try {
-      const sheet = await composeSpritesheet({
-        frameSrcs: selected,
-        cellSize: state.appliedFrameSize ?? state.frameSize,
-      });
-      store.set({
-        spritesheetSrc: sheet.dataUrl,
-        spritesheetCols: sheet.cols,
-        previewGifSrc: null,
-        previewGifBuilding: true,
-        status: "done",
-      });
-      setStatus(
-        framesStatus,
-        `${spinner()}Spritesheet ready — building animated preview…`,
-      );
-      toast("Spritesheet ready");
+    quickPreviewPosition.textContent = `1 / ${frames.length}`;
+    quickPreviewStage.innerHTML = `<img src="${escapeAttr(frames[0])}" alt="Quick animation preview" />`;
+    applyQuickPreviewZoom();
+    if (!quickPreviewPlaying || frames.length === 1) return;
+    let index = 0;
+    quickPreviewTimer = window.setInterval(() => {
+      index = (index + 1) % frames.length;
+      const image = quickPreviewStage.querySelector<HTMLImageElement>("img");
+      if (image) image.src = frames[index];
+      quickPreviewPosition.textContent = `${index + 1} / ${frames.length}`;
+    }, Math.max(16, Math.round(1000 / state.animationFps)));
+  }
 
-      try {
-        const view = await saveSpritesheet(sheet.dataUrl);
-        lastView = view;
-        hasUnsavedInput = true;
-        const gifSrc = view.previewGifUrl
-          ? `${view.previewGifUrl}?v=${encodeURIComponent(view.updatedAt)}`
-          : null;
-        store.set({ previewGifSrc: gifSrc, previewGifBuilding: false });
-        if (gifSrc) {
-          setStatus(framesStatus, "Spritesheet and preview ready.", "success");
-        } else {
-          setStatus(
-            framesStatus,
-            "Spritesheet ready (animated preview failed — see server log).",
-            "success",
-          );
-        }
-      } catch (err) {
-        store.set({ previewGifBuilding: false });
-        console.warn("[client] failed to persist spritesheet/gif", err);
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to compose spritesheet";
-      setStatus(framesStatus, message, "error");
-    }
+  quickPreviewToggle.addEventListener("click", () => {
+    quickPreviewPlaying = !quickPreviewPlaying;
+    quickPreviewToggle.textContent = quickPreviewPlaying ? "Pause" : "Play";
+    quickPreviewKey = "";
+    renderQuickPreview();
   });
 
-  exportBtn.addEventListener("click", () => {
-    const src = store.get().spritesheetSrc;
-    if (!src) {
-      toast("Generate the spritesheet first");
+  function applyQuickPreviewZoom() {
+    const image = quickPreviewStage.querySelector<HTMLImageElement>("img");
+    if (image) image.style.transform = `scale(${quickPreviewZoom})`;
+    zoomResetBtn.textContent = `${Math.round(quickPreviewZoom * 100)}%`;
+    zoomOutBtn.disabled = quickPreviewZoom <= 0.5;
+    zoomInBtn.disabled = quickPreviewZoom >= 4;
+  }
+
+  zoomOutBtn.addEventListener("click", () => {
+    quickPreviewZoom = Math.max(0.5, quickPreviewZoom - 0.25);
+    applyQuickPreviewZoom();
+  });
+  zoomResetBtn.addEventListener("click", () => {
+    quickPreviewZoom = 1;
+    applyQuickPreviewZoom();
+  });
+  zoomInBtn.addEventListener("click", () => {
+    quickPreviewZoom = Math.min(4, quickPreviewZoom + 0.25);
+    applyQuickPreviewZoom();
+  });
+
+  animationFpsInput.addEventListener("change", () => {
+    const fps = Math.max(1, Math.min(60, Math.round(Number(animationFpsInput.value) || 12)));
+    animationFpsInput.value = String(fps);
+    hasUnsavedInput = true;
+    store.set({ animationFps: fps });
+  });
+
+  function activateAnimation(id: string | null, syncUrl = true) {
+    const animation = id
+      ? store.get().animations.find((candidate) => candidate.id === id)
+      : undefined;
+    if (!animation) {
+      frozenDraftFrames = null;
+      animationNameInput.value = "";
+      store.set({ activeAnimationId: null, spritesheetSrc: null, previewGifSrc: null });
+    } else {
+      frozenDraftFrames = animation.frameUrls;
+      animationNameInput.value = animation.name;
+      animationFpsInput.value = String(animation.fps);
+      store.set({
+        activeAnimationId: animation.id,
+        animationFps: animation.fps,
+        selectedFrameIndices: new Set(animation.frameIndices),
+        spritesheetSrc: animation.spritesheetUrl,
+        spritesheetCols: animation.frameUrls.length,
+        previewGifSrc: animation.previewGifUrl,
+      });
+    }
+    quickPreviewKey = "";
+    renderQuickPreview();
+    if (syncUrl) {
+      const project = store.get().currentProjectName;
+      writeNavigation("replace", project === "latest" ? null : project);
+    }
+  }
+
+  newAnimationBtn.addEventListener("click", () => {
+    activateAnimation(null);
+  });
+
+  async function persistAnimation(mode: "create" | "update") {
+    const state = store.get();
+    const name = animationNameInput.value.trim();
+    if (!name) {
+      setStatus(animationStatus, "Enter an Animation name.", "error");
       return;
     }
-    if (src.startsWith("data:")) {
-      downloadDataUrl(src, "spritesheet.png");
-    } else {
-      const a = document.createElement("a");
-      a.href = src;
-      a.download = "spritesheet.png";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+    const indices = currentDraftIndices();
+    const frames = currentDraftFrames();
+    if (frames.length === 0) {
+      setStatus(animationStatus, "Select at least one frame.", "error");
+      return;
     }
+    try {
+      setStatus(animationStatus, `${spinner()}Saving Animation…`);
+      const sheet = await composeSpritesheet({
+        frameSrcs: frames,
+        cellSize: state.appliedFrameSize ?? state.frameSize,
+      });
+      const view = mode === "create"
+        ? await createAnimation({
+            name,
+            frameIndices: indices,
+            fps: state.animationFps,
+            dataUrl: sheet.dataUrl,
+            sourceAnimationId: frozenDraftFrames ? state.activeAnimationId ?? undefined : undefined,
+          })
+        : await updateAnimation(state.activeAnimationId!, {
+            name,
+            frameIndices: indices,
+            fps: state.animationFps,
+            dataUrl: sheet.dataUrl,
+            sourceAnimationId: frozenDraftFrames ? state.activeAnimationId ?? undefined : undefined,
+          });
+      lastView = view;
+      const animations = hydrateFromView(view).animations ?? [];
+      const saved = mode === "create"
+        ? animations.find((animation) => animation.name.toLocaleLowerCase() === name.toLocaleLowerCase())
+        : animations.find((animation) => animation.id === state.activeAnimationId);
+      frozenDraftFrames = saved?.frameUrls ?? null;
+      store.set({
+        animations,
+        activeAnimationId: saved?.id ?? null,
+        spritesheetSrc: saved?.spritesheetUrl ?? sheet.dataUrl,
+        spritesheetCols: frames.length,
+        previewGifSrc: saved?.previewGifUrl ?? null,
+      });
+      const project = store.get().currentProjectName;
+      writeNavigation("replace", project === "latest" ? null : project);
+      hasUnsavedInput = true;
+      setStatus(animationStatus, `Animation '${escapeHtml(name)}' saved.`, "success");
+      toast(`Saved Animation '${name}'`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Animation save failed";
+      setStatus(animationStatus, escapeHtml(message), "error");
+    }
+  }
+
+  saveAnimationBtn.addEventListener("click", () => void persistAnimation("create"));
+  updateAnimationBtn.addEventListener("click", () => void persistAnimation("update"));
+
+  animationsList.addEventListener("click", async (event) => {
+    const target = event.target as HTMLElement;
+    const row = target.closest<HTMLElement>("[data-animation-id]");
+    if (!row) return;
+    const animation = store.get().animations.find((candidate) => candidate.id === row.dataset.animationId);
+    if (!animation) return;
+    if (target.closest("[data-animation-delete]")) {
+      if (!window.confirm(`Delete Animation '${animation.name}'?`)) return;
+      try {
+        const view = await deleteAnimation(animation.id);
+        lastView = view;
+        const animations = hydrateFromView(view).animations ?? [];
+        const wasActive = store.get().activeAnimationId === animation.id;
+        if (wasActive) {
+          frozenDraftFrames = null;
+          animationNameInput.value = "";
+        }
+        store.set({
+          animations,
+          activeAnimationId: wasActive ? null : store.get().activeAnimationId,
+          spritesheetSrc: wasActive ? null : store.get().spritesheetSrc,
+          previewGifSrc: wasActive ? null : store.get().previewGifSrc,
+        });
+        const project = store.get().currentProjectName;
+        writeNavigation("replace", project === "latest" ? null : project);
+        hasUnsavedInput = true;
+        toast(`Deleted Animation '${animation.name}'`);
+      } catch (err) {
+        setStatus(animationStatus, escapeHtml(err instanceof Error ? err.message : "Delete failed"), "error");
+      }
+      return;
+    }
+    if (target.closest("[data-animation-export]")) {
+      const link = document.createElement("a");
+      link.href = animation.spritesheetUrl;
+      link.download = `${animation.name}.png`;
+      link.click();
+      return;
+    }
+    activateAnimation(animation.id);
   });
 
   // ---- New / Save / Load wiring ----
@@ -635,6 +810,9 @@ export function mountApp(root: HTMLElement) {
     try {
       const view = await newProject();
       applyView(view);
+      frozenDraftFrames = null;
+      animationNameInput.value = "";
+      store.set({ activeAnimationId: null });
       cleanUpdatedAt = null;
       hasUnsavedInput = false;
       openAccordionStep(1, false);
@@ -732,6 +910,9 @@ export function mountApp(root: HTMLElement) {
       try {
         const view = await loadProject(name);
         applyView(view);
+        frozenDraftFrames = null;
+        animationNameInput.value = "";
+        store.set({ activeAnimationId: null });
         cleanUpdatedAt = view.updatedAt;
         hasUnsavedInput = false;
         openAccordionStep(view.sourceVideoUrl ? 3 : view.spriteUrl ? 2 : 1, false);
@@ -760,6 +941,14 @@ export function mountApp(root: HTMLElement) {
   function applyView(view: import("./lib/api").ProjectView) {
     lastView = view;
     const patch = hydrateFromView(view);
+    if (
+      store.get().activeAnimationId &&
+      !view.animations.some((animation) => animation.id === store.get().activeAnimationId)
+    ) {
+      patch.activeAnimationId = null;
+      frozenDraftFrames = null;
+      animationNameInput.value = "";
+    }
     store.set(patch);
     promptInput.value = view.spritePrompt;
     motionInput.value = view.motionPrompt;
@@ -835,11 +1024,12 @@ export function mountApp(root: HTMLElement) {
     const extractionOptionsChanged =
       state.paletteLock !== state.appliedPaletteLock ||
       state.hardAlphaEdges !== state.appliedHardAlphaEdges;
-    generateSheetBtn.disabled = busy || state.frames.length === 0;
     selectAllFramesBtn.disabled =
       busy || state.selectedFrameIndices.size === state.frames.length;
     deselectAllFramesBtn.disabled = busy || state.selectedFrameIndices.size === 0;
-    exportBtn.disabled = !state.spritesheetSrc;
+    saveAnimationBtn.disabled = busy || state.selectedFrameIndices.size === 0;
+    updateAnimationBtn.disabled = busy || !state.activeAnimationId;
+    newAnimationBtn.disabled = busy;
     newBtn.disabled = busy;
     saveBtn.disabled = busy;
     loadBtn.disabled = busy;
@@ -955,22 +1145,8 @@ export function mountApp(root: HTMLElement) {
       fillWarning.textContent = `Subject fills ${state.subjectFillMeasured}% of the frame — target is ${state.subjectFillPct}%.`;
     }
 
-    if (state.spritesheetSrc && state.spritesheetCols) {
-      sheetPreview.innerHTML = `<img src="${state.spritesheetSrc}" alt="Spritesheet" />`;
-      sheetMeta.textContent = `1 × ${state.spritesheetCols} · ${state.spritesheetCols} frames`;
-    } else {
-      sheetPreview.innerHTML = `<span class="sheet-preview__placeholder">Generate a spritesheet to preview here</span>`;
-      const pending = state.selectedFrameIndices.size;
-      sheetMeta.textContent = pending > 0 ? `1 × ${pending} · pending` : "No spritesheet yet";
-    }
-
-    if (state.previewGifBuilding) {
-      gifPreview.innerHTML = `<span class="gif-preview__placeholder">${spinner()}Building animated preview…</span>`;
-    } else if (state.previewGifSrc) {
-      gifPreview.innerHTML = `<img src="${state.previewGifSrc}" alt="Animated preview" />`;
-    } else {
-      gifPreview.innerHTML = `<span class="gif-preview__placeholder">Generate a spritesheet to see the animation</span>`;
-    }
+    animationsList.innerHTML = renderAnimations(state.animations, state.activeAnimationId);
+    renderQuickPreview();
 
     projectLabel.textContent =
       state.currentProjectName === "latest" ? "untitled" : state.currentProjectName;
@@ -1040,6 +1216,7 @@ export function mountApp(root: HTMLElement) {
     const requestedName = requested.project ?? "latest";
     if (requestedName === currentName) {
       openAccordionStep(requested.step ? stepNumber(requested.step) : activeStep, false);
+      activateAnimation(requested.animation, false);
       writeNavigation("replace", currentName === "latest" ? null : currentName);
       return;
     }
@@ -1056,6 +1233,10 @@ export function mountApp(root: HTMLElement) {
         ? await loadProject(requested.project)
         : await newProject();
       applyView(view);
+      frozenDraftFrames = null;
+      animationNameInput.value = "";
+      store.set({ activeAnimationId: null });
+      activateAnimation(requested.animation, false);
       cleanUpdatedAt = requested.project ? view.updatedAt : null;
       hasUnsavedInput = false;
       openAccordionStep(requested.step ? stepNumber(requested.step) : inferredStep(view), false);
@@ -1148,6 +1329,7 @@ export function mountApp(root: HTMLElement) {
         initialNavigation.step ? stepNumber(initialNavigation.step) : inferredStep(view),
         false,
       );
+      activateAnimation(initialNavigation.animation, false);
       writeNavigation("replace", projectForUrl);
     })
     .catch((err) => {
@@ -1179,13 +1361,33 @@ function renderFramesGrid(frames: string[], selected: Set<number>): string {
     const isSelected = selected.has(i);
     const empty = !frame;
     tiles.push(`
-      <div class="frame-tile ${isSelected ? "is-selected" : ""} ${empty ? "is-empty" : ""}" data-index="${i}">
+      <button class="frame-tile ${isSelected ? "is-selected" : ""} ${empty ? "is-empty" : ""}" type="button" data-index="${i}" aria-pressed="${isSelected}" ${empty ? "disabled" : ""}>
         <div class="frame-tile__num">${i + 1}</div>
         ${frame ? `<img src="${frame}" alt="Frame ${i + 1}" />` : ""}
-      </div>
+      </button>
     `);
   }
   return tiles.join("");
+}
+
+function renderAnimations(
+  animations: import("./lib/api").AnimationView[],
+  activeId: string | null,
+): string {
+  if (animations.length === 0) {
+    return '<div class="gif-preview__placeholder">No saved Animations yet</div>';
+  }
+  return animations.map((animation) => `
+    <div class="animation-row${animation.id === activeId ? " is-active" : ""}" data-animation-id="${escapeAttr(animation.id)}">
+      <div class="animation-row__title">${escapeHtml(animation.name)}</div>
+      <div class="animation-row__meta">${animation.frameUrls.length} frames · ${animation.fps} FPS</div>
+      <div class="animation-row__actions">
+        <button class="btn btn--link btn--sm" type="button">Edit</button>
+        <button class="btn btn--link btn--sm" type="button" data-animation-export>Export</button>
+        <button class="btn btn--link btn--sm" type="button" data-animation-delete>Delete</button>
+      </div>
+    </div>
+  `).join("");
 }
 
 function renderStyleGuideImages(guides: StyleGuideImageView[], disabled: boolean): string {
@@ -1273,7 +1475,6 @@ function renderShell(): string {
             ${saveIcon}
             Save
           </button>
-          <button class="app-header__help" type="button" aria-label="Help">?</button>
         </div>
       </header>
 
@@ -1473,46 +1674,70 @@ function renderShell(): string {
               <div id="frame-options-notice" class="status"></div>
               <div id="palette-diagnostics" class="geometry-hint" hidden></div>
               <div id="frames-status" class="status"></div>
-              <div class="frames-section">
-                <div class="frames-section__header">
-                  <div id="frames-heading" class="frames-section__label" tabindex="-1">Select frames to include</div>
-                  <div class="frames-section__actions">
-                    <button id="btn-select-all-frames" class="btn btn--link btn--sm" type="button">
-                      Select All
-                    </button>
-                    <button id="btn-deselect-all-frames" class="btn btn--link btn--sm" type="button">
-                      Deselect All
-                    </button>
-                  </div>
-                </div>
-                <div id="frames-grid" class="frames-grid"></div>
-              </div>
-              <button id="btn-generate-sheet" class="btn btn--primary btn--block btn--lg" type="button">
-                ${gridIcon}
-                Generate Spritesheet
-              </button>
               </div>
             </section>
           </div>
 
           <section class="card">
-            <h2 class="card__title">4. Spritesheet Preview</h2>
+            <h2 class="card__title">4. Animations</h2>
             <div class="panel-body">
-            <div id="sheet-preview" class="sheet-preview">
-              <span class="sheet-preview__placeholder">Generate a spritesheet to preview here</span>
-            </div>
-            <div class="sheet-footer">
-              <div id="sheet-meta" class="sheet-footer__meta">No spritesheet yet</div>
-              <button id="btn-export" class="btn btn--secondary" type="button">
-                ${downloadIcon}
-                Export PNG
-              </button>
-            </div>
-            <div class="gif-section">
-              <div class="gif-section__label">Animated Preview</div>
-              <div id="gif-preview" class="gif-preview">
-                <span class="gif-preview__placeholder">Generate a spritesheet to see the animation</span>
+            <div class="animation-workspace">
+            <aside class="animations-library" aria-label="Saved Animations">
+              <div class="gif-section__label">Saved Animations</div>
+              <div id="animations-list" class="animations-list"></div>
+            </aside>
+            <div class="animation-edit-pane">
+            <div class="frames-section">
+              <div class="frames-section__header">
+                <div id="frames-heading" class="frames-section__label" tabindex="-1">Select frames for this Animation</div>
+                <div class="frames-section__actions">
+                  <button id="btn-select-all-frames" class="btn btn--link btn--sm" type="button">
+                    Select All
+                  </button>
+                  <button id="btn-deselect-all-frames" class="btn btn--link btn--sm" type="button">
+                    Deselect All
+                  </button>
+                </div>
               </div>
+              <div id="frames-grid" class="frames-grid"></div>
+            </div>
+            <div class="animation-editor">
+              <div class="animation-editor__header">
+                <div class="field animation-editor__name">
+                  <label class="field__label" for="animation-name">Animation name</label>
+                  <input id="animation-name" class="input" maxlength="40" placeholder="e.g., run" />
+                </div>
+                <div class="field animation-editor__fps">
+                  <label class="field__label" for="animation-fps">FPS</label>
+                  <input id="animation-fps" class="input" type="number" min="1" max="60" value="12" />
+                </div>
+              </div>
+              <div class="quick-preview__header">
+                <div class="quick-preview__title">
+                  <div class="gif-section__label">Quick Preview</div>
+                  <span id="quick-preview-count" class="quick-preview__count">0 frames</span>
+                </div>
+              </div>
+              <div id="quick-preview" class="gif-preview quick-preview">
+                <div id="quick-preview-stage" class="quick-preview__stage">
+                  <span class="gif-preview__placeholder">Select frames to preview immediately</span>
+                </div>
+                <div class="quick-preview__overlay">
+                  <span id="quick-preview-position" class="quick-preview__position">0 / 0</span>
+                  <button id="btn-preview-zoom-out" class="quick-preview__action" type="button" aria-label="Zoom out">−</button>
+                  <button id="btn-preview-zoom-reset" class="quick-preview__action quick-preview__zoom" type="button" aria-label="Reset zoom">100%</button>
+                  <button id="btn-preview-zoom-in" class="quick-preview__action" type="button" aria-label="Zoom in">+</button>
+                  <button id="btn-toggle-preview" class="quick-preview__action quick-preview__play" type="button">Play</button>
+                </div>
+              </div>
+              <div class="animation-editor__actions">
+                <button id="btn-save-animation" class="btn btn--primary" type="button">Save as New</button>
+                <button id="btn-update-animation" class="btn btn--secondary" type="button" disabled>Update</button>
+                <button id="btn-new-animation" class="btn btn--link" type="button">New Draft</button>
+              </div>
+              <div id="animation-status" class="status"></div>
+            </div>
+            </div>
             </div>
             </div>
           </section>
