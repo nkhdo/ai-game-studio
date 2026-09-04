@@ -475,7 +475,8 @@ This keeps each asset type self-contained and the surface area predictable.
 ### Agent verification safety
 
 - Automated tests must mock the OpenRouter boundary. Tests must never make real image, video, audio, or text generation requests or consume provider credits.
-- Do not run smoke tests or end-to-end generation flows against the development app as routine agent verification. Use mocked contract tests plus the TypeScript/Vite build instead.
+- Do not run smoke tests or end-to-end generation flows against the development app as agent verification — this includes launching the dev server or a browser yourself to visually check UI changes. Use mocked contract tests plus the TypeScript/Vite build instead.
+- When a change needs visual or interactive confirmation, finish the build/tests, then hand off: ask the user to smoke-test it in their running dev server and state exactly what to check.
 - Live provider validation requires the user to request it explicitly and approve the cost in the current conversation.
 - The end-to-end bullets below are human release checks, not permission for an agent to call OpenRouter.
 

@@ -1162,7 +1162,14 @@ button {
 .animation-row__actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+
+.animation-editor__actions .status {
+  margin-left: auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .quick-preview {
