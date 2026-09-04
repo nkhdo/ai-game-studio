@@ -26,22 +26,27 @@ import {
 import { extractFrames } from "./extract-frames.js";
 import { buildPreviewGif } from "./build-gif.js";
 import {
-  LATEST_DIR,
   PROJECTS_DIR,
   PROJECT_FILES,
+  activeProjectDir,
+  activeProjectId,
   downloadVideo,
   ensureInsideRoot,
   readPngDims,
+  runInProject,
   saveBase64Image,
   saveDataUrlPng,
+  safeProjectId,
 } from "./files.js";
 import {
+  createProject,
   deleteSavedProject,
-  emptyManifest,
+  getProject,
   listSavedProjects,
-  loadProjectIntoLatest,
+  patchProjectDraft,
+  projectExists,
   readManifest,
-  saveLatestAs,
+  renameProject,
   pruneUnreferencedStyleGuides,
   toView,
   updateLatest,
@@ -72,6 +77,58 @@ app.use("/projects", express.static(PROJECTS_DIR, { fallthrough: false }));
 const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { files: 1, fileSize: 10 * 1024 * 1024 },
+});
+const projectWriteTails = new Map<string, Promise<void>>();
+
+app.use(async (req, res, next) => {
+  const raw = req.header("X-Project-ID");
+  const requiresProject = req.path.startsWith("/api/sprites/") ||
+    req.path === "/api/projects/draft" ||
+    req.path === "/api/projects/selection" ||
+    req.path === "/api/projects/spritesheet" ||
+    req.path.startsWith("/api/projects/animations");
+  if (!requiresProject) { next(); return; }
+  if (!raw) { handleError(new Error("project id is required"), res); return; }
+  try {
+    const id = safeProjectId(raw);
+    if (!projectExists(id)) throw new Error("project not found");
+    const isManagedWrite = req.method !== "GET" && ![
+      "/api/projects",
+      "/api/projects/rename",
+      "/api/projects/delete",
+    ].includes(req.path);
+    if (!isManagedWrite) {
+      runInProject(id, next);
+      return;
+    }
+
+    const previous = projectWriteTails.get(id) ?? Promise.resolve();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const tail = previous.then(() => gate);
+    projectWriteTails.set(id, tail);
+    await previous;
+
+    const finish = () => {
+      release();
+      if (projectWriteTails.get(id) === tail) projectWriteTails.delete(id);
+    };
+    res.once("finish", finish);
+    res.once("close", finish);
+    await runInProject(id, async () => {
+      const expected = Number(req.header("X-Project-Revision"));
+      const current = await readManifest(id);
+      if (req.path !== "/api/projects/draft" &&
+          (!Number.isInteger(expected) || expected !== current.revision)) {
+        const error = new Error("project changed in another tab; reload before retrying");
+        Object.assign(error, { statusCode: 409 });
+        throw error;
+      }
+      next();
+    });
+  } catch (error) {
+    handleError(error, res);
+  }
 });
 
 function requireKey(_req: Request, res: Response, next: NextFunction) {
@@ -104,9 +161,9 @@ app.get("/api/models/image", (_req, res) => {
   res.json({ models: IMAGE_MODELS, default: DEFAULT_IMAGE_MODEL });
 });
 
-app.get("/api/projects/current", async (_req, res) => {
+app.get("/api/projects/:id", async (req, res) => {
   try {
-    res.json(toView(await readManifest("latest")));
+    res.json(await getProject(req.params.id));
   } catch (err) {
     handleError(err, res);
   }
@@ -120,30 +177,34 @@ app.get("/api/projects", async (_req, res) => {
   }
 });
 
-app.post("/api/projects/save", async (req, res) => {
+app.post("/api/projects", async (req, res) => {
   try {
-    const name = asString(req.body?.name, "name", 40);
-    res.json(await saveLatestAs(name));
+    const label = typeof req.body?.label === "string" ? req.body.label : "Untitled project";
+    res.json(await createProject(label));
   } catch (err) {
     handleError(err, res);
   }
 });
 
-app.post("/api/projects/load", async (req, res) => {
+app.post("/api/projects/rename", async (req, res) => {
   try {
-    const name = asString(req.body?.name, "name", 40);
-    res.json(await loadProjectIntoLatest(name));
+    const id = asString(req.body?.id, "project id", 40);
+    const label = asString(req.body?.label, "project label", 80);
+    res.json(await renameProject(id, label));
   } catch (err) {
     handleError(err, res);
   }
 });
 
-app.post("/api/projects/new", async (_req, res) => {
+app.post("/api/projects/draft", async (req, res) => {
   try {
-    if (existsSync(LATEST_DIR)) {
-      await rm(LATEST_DIR, { recursive: true, force: true });
-    }
-    res.json(toView(emptyManifest("latest")));
+    const id = activeProjectId();
+    const revision = Number(req.body?.revision);
+    if (!Number.isInteger(revision) || revision < 0) throw new Error("revision is required");
+    const allowed = ["spritePrompt", "spriteModel", "spritePaletteLock", "motionPrompt", "motionModel", "paletteLock", "hardAlphaEdges", "spriteAcquisitionMode", "draftFrameSize", "draftSubjectFillPct", "draftColorCount", "animationDraftName", "animationDraftFps"] as const;
+    const patch = Object.fromEntries(allowed.filter((key) => key in (req.body?.patch ?? {})).map((key) => [key, req.body.patch[key]]));
+    const base = req.body?.base && typeof req.body.base === "object" ? req.body.base : {};
+    res.json(await patchProjectDraft(id, revision, patch, base));
   } catch (err) {
     handleError(err, res);
   }
@@ -151,8 +212,8 @@ app.post("/api/projects/new", async (_req, res) => {
 
 app.post("/api/projects/delete", async (req, res) => {
   try {
-    const name = asString(req.body?.name, "name", 40);
-    await deleteSavedProject(name);
+    const id = asString(req.body?.id, "project id", 40);
+    await deleteSavedProject(id);
     res.json({ ok: true });
   } catch (err) {
     handleError(err, res);
@@ -175,7 +236,7 @@ app.post("/api/projects/selection", async (req, res) => {
 app.post("/api/projects/spritesheet", async (req, res) => {
   try {
     const dataUrl = asString(req.body?.dataUrl, "dataUrl", 50_000_000);
-    const spritesheetAbs = path.join(LATEST_DIR, PROJECT_FILES.spritesheet);
+    const spritesheetAbs = path.join(activeProjectDir(), PROJECT_FILES.spritesheet);
     await saveDataUrlPng(dataUrl, spritesheetAbs);
 
     let m = await updateLatest({ spritesheet: PROJECT_FILES.spritesheet });
@@ -267,7 +328,7 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       subjectFillPct: req.body?.subjectFillPct,
       colorCount: req.body?.colorCount ?? null,
     });
-    const projectBeforeGeneration = await readManifest("latest");
+    const projectBeforeGeneration = await readManifest(activeProjectId());
     const styleGuideDataUrls = await readSelectedStyleGuideDataUrls(projectBeforeGeneration);
     let generatedBase64: string;
     try {
@@ -306,7 +367,7 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
     await wipeLatestMotionArtifacts();
     await wipeLatestAnimations();
 
-    const refAbs = path.join(LATEST_DIR, PROJECT_FILES.ref);
+    const refAbs = path.join(activeProjectDir(), PROJECT_FILES.ref);
     await saveBase64Image(base64, refAbs);
     const buf = await readFile(refAbs);
     const dims = readPngDims(buf);
@@ -393,7 +454,7 @@ app.post("/api/sprites/video", requireKey, async (req, res) => {
     const duration =
       typeof req.body?.duration === "number" ? req.body.duration : defaultDurationFor(model);
 
-    const current = await readManifest("latest");
+    const current = await readManifest(activeProjectId());
     if (!current.sprite || !current.targetFrameSize) {
       throw new Error("current Reference Sprite is missing applied target geometry");
     }
@@ -403,7 +464,7 @@ app.post("/api/sprites/video", requireKey, async (req, res) => {
     ) {
       throw new Error("current Reference Sprite has invalid applied target geometry");
     }
-    const spriteAbs = path.join(LATEST_DIR, current.sprite);
+    const spriteAbs = path.join(activeProjectDir(), current.sprite);
     ensureInsideRoot(spriteAbs);
     if (!existsSync(spriteAbs)) throw new Error("Reference Sprite not found on disk");
     const spriteBuffer = await readFile(spriteAbs);
@@ -416,9 +477,9 @@ app.post("/api/sprites/video", requireKey, async (req, res) => {
       model,
       false,
     );
-    const videoAbs = path.join(LATEST_DIR, PROJECT_FILES.source);
-    await mkdir(LATEST_DIR, { recursive: true });
-    const tempDir = await mkdtemp(path.join(LATEST_DIR, ".tmp-video-"));
+    const videoAbs = path.join(activeProjectDir(), PROJECT_FILES.source);
+    await mkdir(activeProjectDir(), { recursive: true });
+    const tempDir = await mkdtemp(path.join(activeProjectDir(), ".tmp-video-"));
     const tempVideo = path.join(tempDir, PROJECT_FILES.source);
     try {
       await downloadVideo(video.url, tempVideo, video.headers);
@@ -452,7 +513,7 @@ app.post("/api/sprites/frames", async (req, res) => {
   try {
     const paletteLock = req.body?.paletteLock === true;
     const hardAlphaEdges = req.body?.hardAlphaEdges === true;
-    const current = await readManifest("latest");
+    const current = await readManifest(activeProjectId());
     if (!current.sprite || !current.targetFrameSize) {
       throw new Error("current Reference Sprite is missing applied target geometry");
     }
@@ -464,16 +525,16 @@ app.post("/api/sprites/frames", async (req, res) => {
     }
 
     if (!current.sourceVideo) throw new Error("generate a video before generating frames");
-    const videoAbs = path.join(LATEST_DIR, current.sourceVideo);
-    const spriteAbs = path.join(LATEST_DIR, current.sprite);
+    const videoAbs = path.join(activeProjectDir(), current.sourceVideo);
+    const spriteAbs = path.join(activeProjectDir(), current.sprite);
     ensureInsideRoot(videoAbs);
     ensureInsideRoot(spriteAbs);
     if (!existsSync(videoAbs)) throw new Error("generated source video not found on disk");
     if (!existsSync(spriteAbs)) throw new Error("Reference Sprite not found on disk");
 
     const spriteBuffer = await readFile(spriteAbs);
-    const framesAbs = path.join(LATEST_DIR, PROJECT_FILES.framesDir);
-    const tempRoot = await mkdtemp(path.join(LATEST_DIR, ".tmp-frames-"));
+    const framesAbs = path.join(activeProjectDir(), PROJECT_FILES.framesDir);
+    const tempRoot = await mkdtemp(path.join(activeProjectDir(), ".tmp-frames-"));
     const pendingFrames = path.join(tempRoot, "pending");
     const previousFrames = path.join(tempRoot, "previous");
     let extraction;
@@ -527,7 +588,10 @@ function handleError(err: unknown, res: Response) {
   const clientMessage = safe.length > maxClientErrorLength
     ? `${safe.slice(0, maxClientErrorLength)}… [truncated]`
     : safe;
-  res.status(400).json({ error: clientMessage });
+  const status = err && typeof err === "object" && "statusCode" in err
+    ? Number((err as { statusCode: unknown }).statusCode)
+    : 400;
+  res.status(Number.isInteger(status) ? status : 400).json({ error: clientMessage });
 }
 
 function redact(msg: string): string {

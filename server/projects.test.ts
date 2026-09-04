@@ -7,7 +7,16 @@ test("project view exposes an explicitly persisted source video without frames",
   assert.equal(toView(manifest).sourceVideoUrl, null);
 
   manifest.sourceVideo = "source.mp4";
-  assert.equal(toView(manifest).sourceVideoUrl, "/projects/latest/source.mp4");
+  assert.equal(toView(manifest).sourceVideoUrl, `/projects/${manifest.id}/source.mp4`);
+});
+
+test("project identity is independent from its editable label", () => {
+  const manifest = emptyManifest("123e4567-e89b-42d3-a456-426614174000", "Knight");
+  manifest.sprite = "ref/sprite.png";
+  const view = toView(manifest);
+  assert.equal(view.id, "123e4567-e89b-42d3-a456-426614174000");
+  assert.equal(view.label, "Knight");
+  assert.equal(view.spriteUrl, "/projects/123e4567-e89b-42d3-a456-426614174000/ref/sprite.png");
 });
 
 test("sprite palette lock defaults off and round-trips through the view", () => {

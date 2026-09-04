@@ -3,7 +3,7 @@ import { copyFile, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { buildGifFromFramePaths } from "./build-gif.js";
-import { LATEST_DIR, PROJECT_FILES, ensureInsideRoot, saveDataUrlPng } from "./files.js";
+import { activeProjectDir, activeProjectId, PROJECT_FILES, ensureInsideRoot, saveDataUrlPng } from "./files.js";
 import {
   readManifest,
   toView,
@@ -58,7 +58,7 @@ async function materializeAnimation(
   createdAt: string,
   sourceFrames?: string[],
 ): Promise<AnimationManifest> {
-  const manifest = await readManifest("latest");
+  const manifest = await readManifest(activeProjectId());
   const frameCount = sourceFrames
     ? Math.max(0, ...input.frameIndices.map((index) => index + 1))
     : manifest.frames.length;
@@ -67,10 +67,10 @@ async function materializeAnimation(
     throw new Error("saved Animation frame sequence is inconsistent");
   }
   const relativeDir = `${PROJECT_FILES.animationsDir}/${id}`;
-  const absoluteDir = path.join(LATEST_DIR, relativeDir);
+  const absoluteDir = path.join(activeProjectDir(), relativeDir);
   ensureInsideRoot(absoluteDir);
   const sourcePaths = validated.frameIndices.map((frameIndex, position) =>
-    path.join(LATEST_DIR, sourceFrames?.[position] ?? manifest.frames[frameIndex])
+    path.join(activeProjectDir(), sourceFrames?.[position] ?? manifest.frames[frameIndex])
   );
   for (const [position, source] of sourcePaths.entries()) {
     ensureInsideRoot(source);
@@ -85,20 +85,20 @@ async function materializeAnimation(
   for (const [position] of validated.frameIndices.entries()) {
     const source = sourcePaths[position];
     const relative = `${relativeDir}/frames/frame-${String(position + 1).padStart(5, "0")}.png`;
-    const target = path.join(LATEST_DIR, relative);
+    const target = path.join(activeProjectDir(), relative);
     ensureInsideRoot(target);
     await copyFile(source, target);
     frozenFrames.push(relative);
   }
 
   const spritesheet = `${relativeDir}/spritesheet.png`;
-  await saveDataUrlPng(validated.dataUrl, path.join(LATEST_DIR, spritesheet));
+  await saveDataUrlPng(validated.dataUrl, path.join(activeProjectDir(), spritesheet));
   const previewGif = `${relativeDir}/preview.gif`;
   let savedPreview: string | null = previewGif;
   try {
     await buildGifFromFramePaths(
-      frozenFrames.map((frame) => path.join(LATEST_DIR, frame)),
-      path.join(LATEST_DIR, previewGif),
+      frozenFrames.map((frame) => path.join(activeProjectDir(), frame)),
+      path.join(activeProjectDir(), previewGif),
       manifest.targetFrameSize?.w ?? 128,
       validated.fps,
     );
@@ -123,7 +123,7 @@ async function materializeAnimation(
 }
 
 export async function createAnimation(input: AnimationInput): Promise<ProjectView> {
-  const manifest = await readManifest("latest");
+  const manifest = await readManifest(activeProjectId());
   const sourceAnimation = input.sourceAnimationId
     ? manifest.animations.find((animation) => animation.id === input.sourceAnimationId)
     : undefined;
@@ -139,7 +139,7 @@ export async function createAnimation(input: AnimationInput): Promise<ProjectVie
 }
 
 export async function updateAnimation(id: string, input: AnimationInput): Promise<ProjectView> {
-  const manifest = await readManifest("latest");
+  const manifest = await readManifest(activeProjectId());
   const existing = manifest.animations.find((animation) => animation.id === id);
   if (!existing) throw new Error("animation not found");
   if (input.sourceAnimationId === id) {
@@ -148,13 +148,13 @@ export async function updateAnimation(id: string, input: AnimationInput): Promis
       Math.max(manifest.frames.length, ...existing.frameIndices.map((index) => index + 1)),
     );
     ensureUniqueAnimationName(manifest.animations, validated.name, id);
-    const spritesheetPath = path.join(LATEST_DIR, existing.spritesheet);
+    const spritesheetPath = path.join(activeProjectDir(), existing.spritesheet);
     await saveDataUrlPng(validated.dataUrl, spritesheetPath);
     let previewGif: string | null = existing.previewGif ?? `${PROJECT_FILES.animationsDir}/${id}/preview.gif`;
     try {
       await buildGifFromFramePaths(
-        existing.frames.map((frame) => path.join(LATEST_DIR, frame)),
-        path.join(LATEST_DIR, previewGif),
+        existing.frames.map((frame) => path.join(activeProjectDir(), frame)),
+        path.join(activeProjectDir(), previewGif),
         manifest.targetFrameSize?.w ?? 128,
         validated.fps,
       );
@@ -181,10 +181,10 @@ export async function updateAnimation(id: string, input: AnimationInput): Promis
 }
 
 export async function deleteAnimation(id: string): Promise<ProjectView> {
-  const manifest = await readManifest("latest");
+  const manifest = await readManifest(activeProjectId());
   const existing = manifest.animations.find((animation) => animation.id === id);
   if (!existing) throw new Error("animation not found");
-  const target = path.join(LATEST_DIR, PROJECT_FILES.animationsDir, id);
+  const target = path.join(activeProjectDir(), PROJECT_FILES.animationsDir, id);
   ensureInsideRoot(target);
   await rm(target, { recursive: true, force: true });
   return toView(await updateLatest({

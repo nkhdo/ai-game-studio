@@ -1,13 +1,15 @@
 import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import {
-  LATEST_DIR,
   PROJECTS_DIR,
   PROJECT_FILES,
+  activeProjectDir,
+  activeProjectId,
   ensureInsideRoot,
   projectDir,
-  safeProjectName,
+  safeProjectId,
 } from "./files.js";
 import type { BackgroundSuitability, SpriteAcquisition } from "./reference-sprite.js";
 
@@ -36,7 +38,16 @@ export interface AnimationView extends Omit<AnimationManifest, "frames" | "sprit
 }
 
 export interface ProjectManifest {
-  name: string;
+  id: string;
+  label: string;
+  createdAt: string;
+  revision: number;
+  spriteAcquisitionMode: "generate" | "upload";
+  draftFrameSize: number;
+  draftSubjectFillPct: number;
+  draftColorCount: number | null;
+  animationDraftName: string;
+  animationDraftFps: number;
   spritePrompt: string;
   spriteModel: string;
   styleGuideImages: StyleGuideImage[];
@@ -69,7 +80,16 @@ export interface ProjectManifest {
 }
 
 export interface ProjectView {
-  name: string;
+  id: string;
+  label: string;
+  createdAt: string;
+  revision: number;
+  spriteAcquisitionMode: "generate" | "upload";
+  draftFrameSize: number;
+  draftSubjectFillPct: number;
+  draftColorCount: number | null;
+  animationDraftName: string;
+  animationDraftFps: number;
   spritePrompt: string;
   spriteModel: string;
   styleGuides: Array<{
@@ -104,9 +124,19 @@ export interface ProjectView {
   updatedAt: string;
 }
 
-export function emptyManifest(name = "latest"): ProjectManifest {
+export function emptyManifest(id: string = randomUUID(), label = "Untitled project"): ProjectManifest {
+  const now = new Date().toISOString();
   return {
-    name,
+    id,
+    label,
+    createdAt: now,
+    revision: 0,
+    spriteAcquisitionMode: "generate",
+    draftFrameSize: 128,
+    draftSubjectFillPct: 70,
+    draftColorCount: 16,
+    animationDraftName: "",
+    animationDraftFps: 12,
     spritePrompt: "",
     spriteModel: "openai/gpt-image-2",
     styleGuideImages: [],
@@ -135,7 +165,7 @@ export function emptyManifest(name = "latest"): ProjectManifest {
     spritesheet: null,
     previewGif: null,
     animations: [],
-    updatedAt: new Date().toISOString(),
+    updatedAt: now,
   };
 }
 
@@ -143,16 +173,25 @@ function manifestPath(name: string): string {
   return path.join(projectDir(name), PROJECT_FILES.manifest);
 }
 
-// `dirName` selects the directory on disk. The manifest's `name` field is the
-// conceptual project label and is preserved as-stored — for latest/ it can be
-// any saved name (or "latest" meaning untitled).
+export function projectExists(id: string): boolean {
+  return existsSync(manifestPath(safeProjectId(id)));
+}
+
 export async function readManifest(dirName: string): Promise<ProjectManifest> {
   const p = manifestPath(dirName);
   if (!existsSync(p)) return emptyManifest(dirName);
   try {
     const raw = await readFile(p, "utf8");
-    const parsed = JSON.parse(raw) as Partial<ProjectManifest>;
-    const hydrated = { ...emptyManifest(dirName), ...parsed };
+    const parsed = JSON.parse(raw) as Partial<ProjectManifest> & { name?: string };
+    const hydrated = {
+      ...emptyManifest(dirName, parsed.label ?? parsed.name ?? "Untitled project"),
+      ...parsed,
+      id: dirName,
+      label: parsed.label ?? parsed.name ?? "Untitled project",
+      createdAt: parsed.createdAt ?? parsed.updatedAt ?? new Date().toISOString(),
+      revision: Number.isInteger(parsed.revision) ? parsed.revision! : 0,
+    };
+    delete (hydrated as Partial<ProjectManifest> & { name?: string }).name;
     hydrated.animations = Array.isArray(parsed.animations) ? parsed.animations : [];
     if (hydrated.animations.length === 0 && hydrated.spritesheet) {
       hydrated.animations = [{
@@ -185,6 +224,8 @@ export async function writeManifest(
   await mkdir(projectDir(dirName), { recursive: true });
   const toWrite: ProjectManifest = {
     ...manifest,
+    id: dirName,
+    revision: manifest.revision + 1,
     updatedAt: new Date().toISOString(),
   };
   await writeFile(manifestPath(dirName), JSON.stringify(toWrite, null, 2));
@@ -194,17 +235,25 @@ export async function writeManifest(
 export async function updateLatest(
   patch: Partial<ProjectManifest>,
 ): Promise<ProjectManifest> {
-  const current = await readManifest("latest");
-  return writeManifest("latest", { ...current, ...patch });
+  const id = activeProjectId();
+  const current = await readManifest(id);
+  return writeManifest(id, { ...current, ...patch, id });
 }
 
 
 export function toView(m: ProjectManifest): ProjectView {
-  // URLs always resolve against the working-state directory.
-  // `m.name` is the conceptual project name, not the directory.
-  const base = `/projects/latest/`;
+  const base = `/projects/${m.id}/`;
   return {
-    name: m.name,
+    id: m.id,
+    label: m.label,
+    createdAt: m.createdAt,
+    revision: m.revision,
+    spriteAcquisitionMode: m.spriteAcquisitionMode,
+    draftFrameSize: m.draftFrameSize,
+    draftSubjectFillPct: m.draftSubjectFillPct,
+    draftColorCount: m.draftColorCount,
+    animationDraftName: m.animationDraftName,
+    animationDraftFps: m.animationDraftFps,
     spritePrompt: m.spritePrompt,
     spriteModel: m.spriteModel,
     styleGuides: m.styleGuideSelection.flatMap((id) => {
@@ -266,22 +315,22 @@ export async function pruneUnreferencedStyleGuides(
 
   await Promise.all(
     removed.map(async (guide) => {
-      const absolutePath = path.join(LATEST_DIR, guide.path);
+      const absolutePath = path.join(activeProjectDir(), guide.path);
       ensureInsideRoot(absolutePath);
       await rm(absolutePath, { force: true });
     }),
   );
-  return writeManifest("latest", { ...manifest, styleGuideImages: retained });
+  return writeManifest(activeProjectId(), { ...manifest, styleGuideImages: retained });
 }
 
 export async function wipeLatestMotionArtifacts(): Promise<void> {
-  const sourceVideo = path.join(LATEST_DIR, PROJECT_FILES.source);
+  const sourceVideo = path.join(activeProjectDir(), PROJECT_FILES.source);
   if (existsSync(sourceVideo)) await rm(sourceVideo, { force: true });
   await wipeLatestFramesAndSheet();
 }
 
 export async function wipeLatestFramesAndSheet(): Promise<void> {
-  const framesDir = path.join(LATEST_DIR, PROJECT_FILES.framesDir);
+  const framesDir = path.join(activeProjectDir(), PROJECT_FILES.framesDir);
   if (existsSync(framesDir)) {
     await rm(framesDir, { recursive: true, force: true });
   }
@@ -289,29 +338,37 @@ export async function wipeLatestFramesAndSheet(): Promise<void> {
 }
 
 export async function wipeLatestSpritesheet(): Promise<void> {
-  const sheet = path.join(LATEST_DIR, PROJECT_FILES.spritesheet);
+  const sheet = path.join(activeProjectDir(), PROJECT_FILES.spritesheet);
   if (existsSync(sheet)) await rm(sheet);
-  const gif = path.join(LATEST_DIR, PROJECT_FILES.previewGif);
+  const gif = path.join(activeProjectDir(), PROJECT_FILES.previewGif);
   if (existsSync(gif)) await rm(gif);
 }
 
 export async function wipeLatestAnimations(): Promise<void> {
-  const animationsDir = path.join(LATEST_DIR, PROJECT_FILES.animationsDir);
+  const animationsDir = path.join(activeProjectDir(), PROJECT_FILES.animationsDir);
   ensureInsideRoot(animationsDir);
   if (existsSync(animationsDir)) {
     await rm(animationsDir, { recursive: true, force: true });
   }
 }
 
-export async function listSavedProjects(): Promise<{ name: string; updatedAt: string }[]> {
+export interface ProjectSummary {
+  id: string;
+  label: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listSavedProjects(): Promise<ProjectSummary[]> {
+  await migrateLegacyProjects();
   if (!existsSync(PROJECTS_DIR)) return [];
   const entries = await readdir(PROJECTS_DIR, { withFileTypes: true });
-  const out: { name: string; updatedAt: string }[] = [];
+  const out: ProjectSummary[] = [];
   for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name === "latest") continue;
+    if (!entry.isDirectory() || !isUuid(entry.name)) continue;
     try {
       const m = await readManifest(entry.name);
-      out.push({ name: entry.name, updatedAt: m.updatedAt });
+      out.push({ id: m.id, label: m.label, createdAt: m.createdAt, updatedAt: m.updatedAt });
     } catch {
       // skip malformed
     }
@@ -320,48 +377,132 @@ export async function listSavedProjects(): Promise<{ name: string; updatedAt: st
   return out;
 }
 
-export async function saveLatestAs(name: string): Promise<ProjectView> {
-  safeProjectName(name);
-  if (!existsSync(LATEST_DIR)) {
-    throw new Error("nothing to save — generate a sprite first");
-  }
-  // Stamp the new name into latest before snapshotting, so both manifests agree.
-  const lm = await readManifest("latest");
-  lm.name = name;
-  await writeManifest("latest", lm);
-
-  const target = projectDir(name);
-  if (existsSync(target)) {
-    await rm(target, { recursive: true, force: true });
-  }
-  await cp(LATEST_DIR, target, {
-    recursive: true,
-    filter: (source) => path.basename(source) !== ".tmp-upload",
-  });
-
-  return toView(await readManifest("latest"));
+export async function createProject(label = "Untitled project"): Promise<ProjectView> {
+  const id = randomUUID();
+  return toView(await writeManifest(id, emptyManifest(id, validateLabel(label))));
 }
 
-export async function loadProjectIntoLatest(name: string): Promise<ProjectView> {
-  safeProjectName(name);
-  const source = projectDir(name);
-  if (!existsSync(source)) throw new Error(`project '${name}' not found`);
-  if (existsSync(LATEST_DIR)) {
-    await rm(LATEST_DIR, { recursive: true, force: true });
-  }
-  await cp(source, LATEST_DIR, { recursive: true });
-  // Keep the loaded project's name on the latest manifest so the UI knows what it's working on.
-  return toView(await readManifest("latest"));
+export async function getProject(id: string): Promise<ProjectView> {
+  safeProjectId(id);
+  if (!existsSync(manifestPath(id))) throw new Error("project not found");
+  return toView(await readManifest(id));
 }
 
-export async function deleteSavedProject(name: string): Promise<void> {
-  safeProjectName(name);
-  const target = projectDir(name);
-  if (existsSync(target)) {
-    await rm(target, { recursive: true, force: true });
+export async function renameProject(id: string, label: string): Promise<ProjectView> {
+  safeProjectId(id);
+  const current = await readManifest(id);
+  if (!existsSync(manifestPath(id))) throw new Error("project not found");
+  return toView(await writeManifest(id, { ...current, label: validateLabel(label) }));
+}
+
+export async function deleteSavedProject(id: string): Promise<void> {
+  safeProjectId(id);
+  const target = projectDir(id);
+  if (!existsSync(target)) throw new Error("project not found");
+  await rm(target, { recursive: true, force: true });
+}
+
+export async function patchProjectDraft(
+  id: string,
+  revision: number,
+  patch: Partial<Pick<ProjectManifest,
+    "spritePrompt" | "spriteModel" | "spritePaletteLock" | "motionPrompt" |
+    "motionModel" | "paletteLock" | "hardAlphaEdges" | "spriteAcquisitionMode" |
+    "draftFrameSize" | "draftSubjectFillPct" | "draftColorCount" |
+    "animationDraftName" | "animationDraftFps"
+  >>,
+  base: Record<string, unknown>,
+): Promise<ProjectView> {
+  safeProjectId(id);
+  if (!existsSync(manifestPath(id))) throw new Error("project not found");
+  const current = await readManifest(id);
+  for (const [key, value] of Object.entries(patch)) {
+    const valid = key === "spritePrompt" || key === "spriteModel" || key === "motionPrompt" || key === "motionModel" || key === "animationDraftName"
+      ? typeof value === "string"
+      : key === "spritePaletteLock" || key === "paletteLock" || key === "hardAlphaEdges"
+        ? typeof value === "boolean"
+        : key === "spriteAcquisitionMode"
+          ? value === "generate" || value === "upload"
+        : key === "draftFrameSize" || key === "draftSubjectFillPct" || key === "animationDraftFps"
+          ? typeof value === "number" && Number.isFinite(value)
+          : key === "draftColorCount"
+            ? value === null || (typeof value === "number" && Number.isInteger(value))
+            : false;
+    if (!valid) throw new Error(`invalid draft field '${key}'`);
   }
-  const latest = await readManifest("latest");
-  if (latest.name === name) {
-    await writeManifest("latest", { ...latest, name: "latest" });
+  if (current.revision !== revision) {
+    const conflict = Object.keys(patch).some((key) =>
+      key in base &&
+      current[key as keyof ProjectManifest] !== base[key] &&
+      current[key as keyof ProjectManifest] !== patch[key as keyof typeof patch],
+    );
+    if (conflict) {
+      const error = new Error("project changed in another tab; reload before retrying");
+      Object.assign(error, { statusCode: 409 });
+      throw error;
+    }
+  }
+  return toView(await writeManifest(id, { ...current, ...patch }));
+}
+
+function validateLabel(label: string): string {
+  const value = label.trim();
+  if (!value) throw new Error("project label is required");
+  if (value.length > 80) throw new Error("project label is too long");
+  return value;
+}
+
+function isUuid(value: string): boolean {
+  try { safeProjectId(value); return true; } catch { return false; }
+}
+
+function hasMeaningfulLegacyWork(m: ProjectManifest): boolean {
+  return Boolean(m.sprite || m.sourceVideo || m.frames.length || m.animations.length ||
+    m.spritePrompt || m.motionPrompt || m.styleGuideImages.length);
+}
+
+export async function migrateLegacyProjects(): Promise<void> {
+  if (!existsSync(PROJECTS_DIR)) return;
+  const entries = await readdir(PROJECTS_DIR, { withFileTypes: true });
+  const legacy = entries.filter((entry) => entry.isDirectory() && !isUuid(entry.name));
+  if (legacy.length === 0) return;
+
+  const named = legacy.filter((entry) => entry.name !== "latest");
+  const created: string[] = [];
+  try {
+    for (const entry of named) {
+      const old = await readManifest(entry.name);
+      const id = randomUUID();
+      const target = projectDir(id);
+      await cp(projectDir(entry.name), target, { recursive: true });
+      await writeManifest(id, { ...old, id, label: old.label || entry.name, revision: 0 });
+      created.push(target);
+    }
+
+    const latestEntry = legacy.find((entry) => entry.name === "latest");
+    if (latestEntry) {
+      const latest = await readManifest("latest");
+      const matching = named.find((entry) => entry.name === latest.label);
+      let recover = hasMeaningfulLegacyWork(latest);
+      if (matching) {
+        const snapshot = await readManifest(matching.name);
+        recover = latest.updatedAt > snapshot.updatedAt;
+      }
+      if (recover) {
+        const id = randomUUID();
+        const target = projectDir(id);
+        await cp(projectDir("latest"), target, { recursive: true });
+        const baseLabel = latest.label === "latest" ? "Recovered project" : `${latest.label} (recovered)`;
+        await writeManifest(id, { ...latest, id, label: baseLabel, revision: 0 });
+        created.push(target);
+      }
+    }
+  } catch (error) {
+    await Promise.all(created.map((target) => rm(target, { recursive: true, force: true })));
+    throw error;
+  }
+
+  for (const entry of legacy) {
+    await rm(projectDir(entry.name), { recursive: true, force: true });
   }
 }

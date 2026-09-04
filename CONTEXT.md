@@ -4,6 +4,14 @@ AI Game Studio creates reusable game assets through project-based generation and
 
 ## Language
 
+**Project**:
+A durable, continuously saved workspace for creating a related Reference Sprite, Movement Frames, and Animations. Each Project has an immutable UUID identity; the studio always has an active Project.
+_Avoid_: Saved project, snapshot, temporary project
+
+**Project Label**:
+The user-facing name of a Project. It is non-unique display metadata, may be changed freely, and is not the Project's storage identity.
+_Avoid_: Project name, project ID
+
 **Reference Sprite**:
 The single authoritative, opaque source image used to generate a project's movement frames. It may be generated from a prompt or supplied by the user through an upload, and is expected to use the studio's chroma-green background.
 _Avoid_: Generated sprite, source sprite
