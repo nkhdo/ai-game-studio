@@ -18,3 +18,18 @@ test("sprite palette lock defaults off and round-trips through the view", () => 
   manifest.spritePaletteLock = true;
   assert.equal(toView(manifest).spritePaletteLock, true);
 });
+
+test("frame cleanup fields default safely and round-trip through the view", () => {
+  const manifest = emptyManifest();
+  assert.equal(manifest.hardAlphaEdges, false);
+  assert.equal(manifest.preservedOffPalettePixels, null);
+  assert.equal(manifest.removedLowAlphaPixels, null);
+
+  manifest.hardAlphaEdges = true;
+  manifest.preservedOffPalettePixels = 42;
+  manifest.removedLowAlphaPixels = 7;
+  const view = toView(manifest);
+  assert.equal(view.hardAlphaEdges, true);
+  assert.equal(view.preservedOffPalettePixels, 42);
+  assert.equal(view.removedLowAlphaPixels, 7);
+});

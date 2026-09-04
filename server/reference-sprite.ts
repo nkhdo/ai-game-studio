@@ -321,6 +321,8 @@ export async function commitReferenceUpload(uploadId: string) {
     selectedFrameIndices: [],
     spritesheet: null,
     previewGif: null,
+    preservedOffPalettePixels: null,
+    removedLowAlphaPixels: null,
   });
   manifest = await pruneUnreferencedStyleGuides(manifest);
   return toView(manifest);

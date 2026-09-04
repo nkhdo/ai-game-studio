@@ -290,6 +290,8 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       selectedFrameIndices: [],
       spritesheet: null,
       previewGif: null,
+      preservedOffPalettePixels: null,
+      removedLowAlphaPixels: null,
     });
     m = await pruneUnreferencedStyleGuides(m);
 
@@ -347,6 +349,7 @@ app.post("/api/sprites/animate", requireKey, async (req, res) => {
     const duration =
       typeof req.body?.duration === "number" ? req.body.duration : defaultDurationFor(model);
     const paletteLock = req.body?.paletteLock === true;
+    const hardAlphaEdges = req.body?.hardAlphaEdges === true;
 
     const current = await readManifest("latest");
     if (!current.sprite || !current.targetFrameSize) {
@@ -377,19 +380,25 @@ app.post("/api/sprites/animate", requireKey, async (req, res) => {
     await downloadVideo(video.url, videoAbs, video.headers);
 
     const framesAbs = path.join(LATEST_DIR, PROJECT_FILES.framesDir);
-    const frameFiles = await extractFrames(
+    const extraction = await extractFrames(
       videoAbs,
       framesAbs,
       current.targetFrameSize.w,
-      paletteLock ? { referenceSprite: spriteBuffer } : {},
+      {
+        referenceSprite: paletteLock ? spriteBuffer : undefined,
+        hardAlphaEdges,
+      },
     );
-    const frames = frameFiles.map((f) => `${PROJECT_FILES.framesDir}/${f}`);
+    const frames = extraction.files.map((f) => `${PROJECT_FILES.framesDir}/${f}`);
 
     const m = await updateLatest({
       motionPrompt: text,
       motionModel: model,
       frames,
       paletteLock,
+      hardAlphaEdges,
+      preservedOffPalettePixels: extraction.preservedOffPalettePixels,
+      removedLowAlphaPixels: extraction.removedLowAlphaPixels,
       spritesheet: null,
       previewGif: null,
     });

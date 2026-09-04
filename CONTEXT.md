@@ -41,8 +41,12 @@ The set of colors present in the opaque, non-background pixels of the current Re
 _Avoid_: Sprite colors, image palette
 
 **Palette Lock**:
-A per-generation option that constrains the colors of generated output to the palette of the images that generation is based on. For a generated Reference Sprite, the palette is the union of the applied Style Guide Images; for extracted Movement Frames, it is the Subject Palette. The chroma-green background is never remapped, and the alpha channel is never altered.
+A per-generation option that aligns generated output with the palette of the images that generation is based on. Reference Sprite conformance uses the applied Style Guide Images; Movement Frame conformance uses the Subject Palette but preserves colors whose mapping is uncertain. The alpha channel is never altered.
 _Avoid_: Color fixing, color correction, palette matching
+
+**Hard Alpha Edges**:
+An optional Movement Frame treatment that permits only fully opaque or fully transparent pixels. It is independent of Palette Lock and does not alter the Reference Sprite.
+_Avoid_: Alpha lock, transparency removal
 
 **Target Frame Size**:
 The requested pixel dimensions of the Reference Sprite. Acquisition guarantees the stored Reference Sprite exactly matches it, rescaling the image and extending the chroma-green background as needed rather than distorting the subject.

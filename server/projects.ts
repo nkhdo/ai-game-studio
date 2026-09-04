@@ -31,6 +31,9 @@ export interface ProjectManifest {
   motionPrompt: string;
   motionModel: string;
   paletteLock: boolean;
+  hardAlphaEdges: boolean;
+  preservedOffPalettePixels: number | null;
+  removedLowAlphaPixels: number | null;
   sprite: string | null;
   spriteDimensions: { w: number; h: number } | null;
   targetFrameSize: { w: number; h: number } | null;
@@ -60,6 +63,9 @@ export interface ProjectView {
   motionPrompt: string;
   motionModel: string;
   paletteLock: boolean;
+  hardAlphaEdges: boolean;
+  preservedOffPalettePixels: number | null;
+  removedLowAlphaPixels: number | null;
   spriteUrl: string | null;
   spriteDimensions: { w: number; h: number } | null;
   targetFrameSize: { w: number; h: number } | null;
@@ -89,6 +95,9 @@ export function emptyManifest(name = "latest"): ProjectManifest {
     motionPrompt: "",
     motionModel: "x-ai/grok-imagine-video",
     paletteLock: false,
+    hardAlphaEdges: false,
+    preservedOffPalettePixels: null,
+    removedLowAlphaPixels: null,
     sprite: null,
     spriteDimensions: null,
     targetFrameSize: null,
@@ -168,6 +177,9 @@ export function toView(m: ProjectManifest): ProjectView {
     motionPrompt: m.motionPrompt,
     motionModel: m.motionModel,
     paletteLock: m.paletteLock,
+    hardAlphaEdges: m.hardAlphaEdges,
+    preservedOffPalettePixels: m.preservedOffPalettePixels,
+    removedLowAlphaPixels: m.removedLowAlphaPixels,
     spriteUrl: m.sprite ? base + m.sprite : null,
     spriteDimensions: m.spriteDimensions,
     targetFrameSize: m.targetFrameSize ?? null,

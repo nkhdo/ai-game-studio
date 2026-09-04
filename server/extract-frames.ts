@@ -2,12 +2,22 @@ import { spawn } from "node:child_process";
 import { mkdir, readdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { extractSubjectPalette, remapFramesToPalette } from "./palette-lock.js";
+import {
+  extractSubjectPalette,
+  remapFramesToPalette,
+  type FrameProcessingStats,
+} from "./palette-lock.js";
 import { ROOT_DIR, ensureInsideRoot } from "./files.js";
 
 export interface ExtractFramesOptions {
   /** Reference Sprite bytes; when set, extracted frames are remapped to its Subject Palette. */
   referenceSprite?: Buffer;
+  /** Convert extracted antialiased edges to binary transparency. */
+  hardAlphaEdges?: boolean;
+}
+
+export interface ExtractFramesResult extends FrameProcessingStats {
+  files: string[];
 }
 
 export async function extractFrames(
@@ -15,7 +25,7 @@ export async function extractFrames(
   outputDir: string,
   frameSize: number,
   options: ExtractFramesOptions = {},
-): Promise<string[]> {
+): Promise<ExtractFramesResult> {
   ensureInsideRoot(inputMp4);
   ensureInsideRoot(outputDir);
   if (!existsSync(inputMp4)) {
@@ -50,10 +60,18 @@ export async function extractFrames(
     throw new Error("no frames produced");
   }
 
-  if (options.referenceSprite) {
-    const palette = await extractSubjectPalette(options.referenceSprite);
-    await remapFramesToPalette(outputDir, palette);
+  let stats: FrameProcessingStats = {
+    preservedOffPalettePixels: 0,
+    removedLowAlphaPixels: 0,
+  };
+  if (options.referenceSprite || options.hardAlphaEdges) {
+    const palette = options.referenceSprite
+      ? await extractSubjectPalette(options.referenceSprite)
+      : null;
+    stats = await remapFramesToPalette(outputDir, palette, {
+      hardAlphaEdges: options.hardAlphaEdges,
+    });
   }
 
-  return frames;
+  return { files: frames, ...stats };
 }
