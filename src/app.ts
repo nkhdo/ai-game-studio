@@ -1690,8 +1690,8 @@ function renderShell(): string {
                 <button id="btn-save-animation" class="btn btn--primary" type="button">Save as New</button>
                 <button id="btn-update-animation" class="btn btn--secondary" type="button" disabled>Update</button>
                 <button id="btn-new-animation" class="btn btn--link" type="button">New Draft</button>
+                <div id="animation-status" class="status"></div>
               </div>
-              <div id="animation-status" class="status"></div>
             </div>
             </div>
             </div>
