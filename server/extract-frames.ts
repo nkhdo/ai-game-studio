@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
-import { mkdir, readdir, rm } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import sharp from "sharp";
 import {
   extractSubjectPalette,
   remapFramesToPalette,
@@ -18,6 +19,25 @@ export interface ExtractFramesOptions {
 
 export interface ExtractFramesResult extends FrameProcessingStats {
   files: string[];
+}
+
+export async function resizeExtractedFrames(
+  outputDir: string,
+  files: string[],
+  frameSize: number,
+): Promise<void> {
+  for (const entry of files) {
+    const file = path.join(outputDir, entry);
+    const resized = await sharp(await readFile(file))
+      .resize(frameSize, frameSize, {
+        fit: "contain",
+        kernel: "nearest",
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      })
+      .png()
+      .toBuffer();
+    await writeFile(file, resized);
+  }
 }
 
 export async function extractFrames(
@@ -44,7 +64,7 @@ export async function extractFrames(
   const scriptPath = path.join(ROOT_DIR, "scripts", "extract-frames.sh");
 
   await new Promise<void>((resolve, reject) => {
-    const child = spawn("bash", [scriptPath, inputMp4, outputDir, String(frameSize)], {
+    const child = spawn("bash", [scriptPath, inputMp4, outputDir], {
       stdio: "inherit",
     });
     child.on("error", reject);
@@ -63,6 +83,7 @@ export async function extractFrames(
   let stats: FrameProcessingStats = {
     preservedOffPalettePixels: 0,
     removedLowAlphaPixels: 0,
+    removedChromaFringePixels: 0,
   };
   if (options.referenceSprite || options.hardAlphaEdges) {
     const palette = options.referenceSprite
@@ -72,6 +93,10 @@ export async function extractFrames(
       hardAlphaEdges: options.hardAlphaEdges,
     });
   }
+
+  // Palette neighborhoods are evaluated at the video's native resolution.
+  // Resize only after colors and alpha have been finalized.
+  await resizeExtractedFrames(outputDir, frames, frameSize);
 
   return { files: frames, ...stats };
 }

@@ -45,21 +45,21 @@ test("rejects a sprite with no subject colors", async () => {
   await assert.rejects(extractSubjectPalette(sprite), /no usable subject colors/);
 });
 
-test("conservatively remaps supported colors and preserves uncertain source colors", async () => {
+test("conservatively remaps supported colors and resolves uncertain colors locally", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "palette-lock-"));
   const frame = await rawToPng(4, 1, [
     // Three supported near-red pixels map to red.
     255, 0, 0, 255,
     230, 10, 10, 255,
     255, 0, 0, 255,
-    // A distant color is retained.
+    // A distant color inherits the nearby red palette region.
     180, 30, 30, 255,
   ]);
   await writeFile(path.join(dir, "frame-00001.png"), frame);
 
   const stats = await remapFramesToPalette(dir, [[255, 0, 0], [0, 0, 255]]);
 
-  assert.equal(stats.preservedOffPalettePixels, 1);
+  assert.equal(stats.preservedOffPalettePixels, 0);
   const { data } = await sharp(await readFile(path.join(dir, "frame-00001.png")))
     .ensureAlpha()
     .raw()
@@ -69,7 +69,7 @@ test("conservatively remaps supported colors and preserves uncertain source colo
     255, 0, 0, 255,
     255, 0, 0, 255,
   ]);
-  assert.deepEqual([...data.slice(12, 16)], [180, 30, 30, 255]);
+  assert.deepEqual([...data.slice(12, 16)], [255, 0, 0, 255]);
 });
 
 test("uses actual pixel distance and rejects an isolated mid-distance candidate", async () => {
@@ -84,9 +84,9 @@ test("uses actual pixel distance and rejects an isolated mid-distance candidate"
     .raw()
     .toBuffer({ resolveWithObject: true });
   assert.deepEqual([...data.slice(0, 4)], [0, 0, 0, 255]);
-  assert.deepEqual([...data.slice(4, 8)], [13, 13, 13, 255]);
+  assert.deepEqual([...data.slice(4, 8)], [0, 0, 0, 255]);
   assert.deepEqual([...data.slice(8, 12)], [0x00, 0xb1, 0x40, 0]);
-  assert.equal(result.stats.preservedOffPalettePixels, 1);
+  assert.equal(result.stats.preservedOffPalettePixels, 0);
 });
 
 test("hard alpha removes fringes before palette matching and makes subject opaque", async () => {
@@ -108,7 +108,24 @@ test("hard alpha removes fringes before palette matching and makes subject opaqu
   assert.equal(result.stats.removedLowAlphaPixels, 1);
 });
 
-test("transparent neighbors do not support a mid-distance remap", async () => {
+test("hard alpha removes semi-transparent chroma fringe beside transparent background", async () => {
+  const frame = await rawToPng(4, 1, [
+    0, 0, 0, 0,
+    12, 170, 70, 180,
+    20, 165, 75, 190,
+    230, 10, 10, 180,
+  ]);
+  const result = await processMovementFrame(frame, [[255, 0, 0]], {
+    hardAlphaEdges: true,
+  });
+  const data = await sharp(result.image).ensureAlpha().raw().toBuffer();
+  assert.deepEqual([...data.slice(4, 8)], [0, 0, 0, 0]);
+  assert.deepEqual([...data.slice(8, 12)], [0, 0, 0, 0]);
+  assert.deepEqual([...data.slice(12, 16)], [255, 0, 0, 255]);
+  assert.equal(result.stats.removedChromaFringePixels, 2);
+});
+
+test("transparent neighbors do not count as confident local palette evidence", async () => {
   const frame = await rawToPng(3, 1, [
     230, 10, 10, 0,
     230, 10, 10, 255,
@@ -116,8 +133,8 @@ test("transparent neighbors do not support a mid-distance remap", async () => {
   ]);
   const result = await processMovementFrame(frame, [[255, 0, 0]]);
   const data = await sharp(result.image).ensureAlpha().raw().toBuffer();
-  assert.deepEqual([...data.slice(4, 8)], [230, 10, 10, 255]);
-  assert.equal(result.stats.preservedOffPalettePixels, 1);
+  assert.deepEqual([...data.slice(4, 8)], [255, 0, 0, 255]);
+  assert.equal(result.stats.preservedOffPalettePixels, 0);
 });
 
 test("neighbor decisions use the immutable input instead of remapped output", async () => {
@@ -128,12 +145,23 @@ test("neighbor decisions use the immutable input instead of remapped output", as
   ]);
   const result = await processMovementFrame(frame, [[255, 0, 0]]);
   const data = await sharp(result.image).ensureAlpha().raw().toBuffer();
-  // The left edge has only one matching neighbor in the original candidate pass.
-  assert.deepEqual([...data.slice(0, 4)], [230, 10, 10, 255]);
-  assert.deepEqual([...data.slice(4, 12)], [
+  assert.deepEqual([...data.slice(0, 12)], [
+    255, 0, 0, 255,
     255, 0, 0, 255,
     255, 0, 0, 255,
   ]);
+});
+
+test("uncertain pixels inherit the dominant local palette color", async () => {
+  const frame = await rawToPng(3, 3, [
+    156, 190, 170, 255, 156, 190, 170, 255, 156, 190, 170, 255,
+    156, 190, 170, 255, 130, 135, 133, 255, 156, 190, 170, 255,
+    156, 190, 170, 255, 156, 190, 170, 255, 72, 88, 132, 255,
+  ]);
+  const result = await processMovementFrame(frame, [[156, 190, 170], [72, 88, 132]]);
+  const data = await sharp(result.image).ensureAlpha().raw().toBuffer();
+  assert.deepEqual([...data.slice(16, 20)], [156, 190, 170, 255]);
+  assert.equal(result.stats.preservedOffPalettePixels, 0);
 });
 
 test("conforms a generated sprite to the union palette of reference images, preserving chroma", async () => {

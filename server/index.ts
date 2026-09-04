@@ -292,6 +292,7 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       previewGif: null,
       preservedOffPalettePixels: null,
       removedLowAlphaPixels: null,
+      removedChromaFringePixels: null,
     });
     m = await pruneUnreferencedStyleGuides(m);
 
@@ -399,6 +400,7 @@ app.post("/api/sprites/animate", requireKey, async (req, res) => {
       hardAlphaEdges,
       preservedOffPalettePixels: extraction.preservedOffPalettePixels,
       removedLowAlphaPixels: extraction.removedLowAlphaPixels,
+      removedChromaFringePixels: extraction.removedChromaFringePixels,
       spritesheet: null,
       previewGif: null,
     });

@@ -34,6 +34,7 @@ export interface ProjectManifest {
   hardAlphaEdges: boolean;
   preservedOffPalettePixels: number | null;
   removedLowAlphaPixels: number | null;
+  removedChromaFringePixels: number | null;
   sprite: string | null;
   spriteDimensions: { w: number; h: number } | null;
   targetFrameSize: { w: number; h: number } | null;
@@ -66,6 +67,7 @@ export interface ProjectView {
   hardAlphaEdges: boolean;
   preservedOffPalettePixels: number | null;
   removedLowAlphaPixels: number | null;
+  removedChromaFringePixels: number | null;
   spriteUrl: string | null;
   spriteDimensions: { w: number; h: number } | null;
   targetFrameSize: { w: number; h: number } | null;
@@ -98,6 +100,7 @@ export function emptyManifest(name = "latest"): ProjectManifest {
     hardAlphaEdges: false,
     preservedOffPalettePixels: null,
     removedLowAlphaPixels: null,
+    removedChromaFringePixels: null,
     sprite: null,
     spriteDimensions: null,
     targetFrameSize: null,
@@ -180,6 +183,7 @@ export function toView(m: ProjectManifest): ProjectView {
     hardAlphaEdges: m.hardAlphaEdges,
     preservedOffPalettePixels: m.preservedOffPalettePixels,
     removedLowAlphaPixels: m.removedLowAlphaPixels,
+    removedChromaFringePixels: m.removedChromaFringePixels,
     spriteUrl: m.sprite ? base + m.sprite : null,
     spriteDimensions: m.spriteDimensions,
     targetFrameSize: m.targetFrameSize ?? null,

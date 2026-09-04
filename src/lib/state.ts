@@ -42,6 +42,7 @@ export interface AppState {
   hardAlphaEdges: boolean;
   preservedOffPalettePixels: number | null;
   removedLowAlphaPixels: number | null;
+  removedChromaFringePixels: number | null;
   videoModels: VideoModelOption[];
   spriteSrc: string | null;
   spriteDimensions: { w: number; h: number } | null;
@@ -82,6 +83,7 @@ export function createInitialState(): AppState {
     hardAlphaEdges: false,
     preservedOffPalettePixels: null,
     removedLowAlphaPixels: null,
+    removedChromaFringePixels: null,
     videoModels: [],
     spriteSrc: null,
     spriteDimensions: null,
@@ -129,6 +131,7 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
     hardAlphaEdges: view.hardAlphaEdges ?? false,
     preservedOffPalettePixels: view.preservedOffPalettePixels ?? null,
     removedLowAlphaPixels: view.removedLowAlphaPixels ?? null,
+    removedChromaFringePixels: view.removedChromaFringePixels ?? null,
     spriteSrc: cacheBust(view.spriteUrl, v),
     spriteDimensions: view.spriteDimensions,
     frameSize: view.targetFrameSize?.w ?? DEFAULT_TARGET_FRAME_SIZE,

@@ -116,13 +116,23 @@ export interface FramePaletteOptions {
 export interface FrameProcessingStats {
   preservedOffPalettePixels: number;
   removedLowAlphaPixels: number;
+  removedChromaFringePixels: number;
 }
 
+const CHROMA_FRINGE_DISTANCE = 100;
 const DEFAULT_FRAME_OPTIONS = {
   exactTolerance: 12,
   maxDistance: 32,
   minMatchingNeighbors: 2,
 } as const;
+
+function isChromaFringe(r: number, g: number, b: number): boolean {
+  if (g <= r || g <= b) return false;
+  const dr = r - CHROMA_GREEN.r;
+  const dg = g - CHROMA_GREEN.g;
+  const db = b - CHROMA_GREEN.b;
+  return Math.sqrt(dr * dr + dg * dg + db * db) <= CHROMA_FRINGE_DISTANCE;
+}
 
 function nearestPaletteMatch(
   palette: number[][],
@@ -168,13 +178,55 @@ export async function processMovementFrame(
   const stats: FrameProcessingStats = {
     preservedOffPalettePixels: 0,
     removedLowAlphaPixels: 0,
+    removedChromaFringePixels: 0,
   };
 
   if (options.hardAlphaEdges) {
-    for (let offset = 0; offset < data.length; offset += 4) {
+    const pixelCount = info.width * info.height;
+    const becomesTransparent = new Uint8Array(pixelCount);
+    const queue: number[] = [];
+    for (let pixel = 0; pixel < pixelCount; pixel++) {
+      const offset = pixel * 4;
+      if (data[offset + 3] < 128) {
+        becomesTransparent[pixel] = 1;
+        queue.push(pixel);
+      }
+    }
+
+    // Flood only through chroma-like pixels connected to the transparent matte.
+    // This reaches multi-pixel backdrop residue without deleting isolated green
+    // details inside the subject.
+    for (let cursor = 0; cursor < queue.length; cursor++) {
+      const pixel = queue[cursor];
+      const x = pixel % info.width;
+      const y = Math.floor(pixel / info.width);
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || nx >= info.width || ny < 0 || ny >= info.height) continue;
+          const neighbor = ny * info.width + nx;
+          if (becomesTransparent[neighbor]) continue;
+          const offset = neighbor * 4;
+          if (
+            data[offset + 3] >= 128 &&
+            isChromaFringe(data[offset], data[offset + 1], data[offset + 2])
+          ) {
+            becomesTransparent[neighbor] = 2;
+            queue.push(neighbor);
+          }
+        }
+      }
+    }
+
+    for (let pixel = 0; pixel < pixelCount; pixel++) {
+      const offset = pixel * 4;
       const alpha = data[offset + 3];
-      if (alpha < 128) {
-        if (alpha > 0) stats.removedLowAlphaPixels++;
+      const chromaFringe = becomesTransparent[pixel] === 2;
+      if (alpha < 128 || chromaFringe) {
+        if (alpha > 0 && alpha < 128) stats.removedLowAlphaPixels++;
+        if (chromaFringe) stats.removedChromaFringePixels++;
         data[offset] = 0;
         data[offset + 1] = 0;
         data[offset + 2] = 0;
@@ -190,6 +242,7 @@ export async function processMovementFrame(
     const indices = new Int32Array(pixelCount).fill(-1);
     const distances = new Float32Array(pixelCount);
     const packedColors = new Uint32Array(pixelCount);
+    const acceptedPixels = new Uint8Array(pixelCount);
 
     for (let pixel = 0; pixel < pixelCount; pixel++) {
       const offset = pixel * 4;
@@ -229,14 +282,46 @@ export async function processMovementFrame(
       }
 
       if (accepted) {
+        acceptedPixels[pixel] = 1;
         const packed = packedColors[pixel];
         const offset = pixel * 4;
         data[offset] = (packed >> 16) & 0xff;
         data[offset + 1] = (packed >> 8) & 0xff;
         data[offset + 2] = packed & 0xff;
-      } else {
-        stats.preservedOffPalettePixels++;
       }
+    }
+
+    for (let pixel = 0; pixel < pixelCount; pixel++) {
+      if (indices[pixel] < 0 || acceptedPixels[pixel]) continue;
+      const x = pixel % info.width;
+      const y = Math.floor(pixel / info.width);
+      const counts = new Uint16Array(palette.length);
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || nx >= info.width || ny < 0 || ny >= info.height) continue;
+          const neighbor = ny * info.width + nx;
+          if (acceptedPixels[neighbor]) counts[indices[neighbor]]++;
+        }
+      }
+      let localIndex = indices[pixel];
+      let highestCount = 0;
+      for (let index = 0; index < counts.length; index++) {
+        if (
+          counts[index] > highestCount ||
+          (counts[index] === highestCount && index === indices[pixel])
+        ) {
+          highestCount = counts[index];
+          localIndex = index;
+        }
+      }
+      const offset = pixel * 4;
+      const [r, g, b] = palette[localIndex];
+      data[offset] = r;
+      data[offset + 1] = g;
+      data[offset + 2] = b;
     }
   }
 
@@ -287,12 +372,14 @@ export async function remapFramesToPalette(
   const totals: FrameProcessingStats = {
     preservedOffPalettePixels: 0,
     removedLowAlphaPixels: 0,
+    removedChromaFringePixels: 0,
   };
   for (const entry of entries) {
     const file = path.join(framesDir, entry);
     const result = await processMovementFrame(await readFile(file), palette, options);
     totals.preservedOffPalettePixels += result.stats.preservedOffPalettePixels;
     totals.removedLowAlphaPixels += result.stats.removedLowAlphaPixels;
+    totals.removedChromaFringePixels += result.stats.removedChromaFringePixels;
     await writeFile(file, result.image);
   }
   return totals;
