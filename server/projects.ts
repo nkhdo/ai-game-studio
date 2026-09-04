@@ -41,6 +41,7 @@ export interface ProjectManifest {
   subjectFillPct: number | null;
   colorCount: number | null;
   subjectFillMeasured: number | null;
+  sourceVideo: string | null;
   frames: string[];
   selectedFrameIndices: number[];
   spritesheet: string | null;
@@ -59,6 +60,7 @@ export interface ProjectView {
   }>;
   styleGuidesChanged: boolean;
   spriteAcquisition: SpriteAcquisition | null;
+  spriteOriginalFilename: string | null;
   spritePaletteLock: boolean;
   backgroundSuitability: BackgroundSuitability;
   motionPrompt: string;
@@ -107,6 +109,7 @@ export function emptyManifest(name = "latest"): ProjectManifest {
     subjectFillPct: null,
     colorCount: null,
     subjectFillMeasured: null,
+    sourceVideo: null,
     frames: [],
     selectedFrameIndices: [],
     spritesheet: null,
@@ -130,6 +133,10 @@ export async function readManifest(dirName: string): Promise<ProjectManifest> {
     const parsed = JSON.parse(raw) as Partial<ProjectManifest>;
     const hydrated = { ...emptyManifest(dirName), ...parsed };
     if (!hydrated.spriteAcquisition && hydrated.sprite) hydrated.spriteAcquisition = "generated";
+    // Older manifests inferred source.mp4 from the presence of frames.
+    if (parsed.sourceVideo === undefined && hydrated.frames.length > 0) {
+      hydrated.sourceVideo = PROJECT_FILES.source;
+    }
     return hydrated;
   } catch {
     return emptyManifest(dirName);
@@ -175,6 +182,7 @@ export function toView(m: ProjectManifest): ProjectView {
       m.styleGuideSelection.length !== m.appliedStyleGuideSet.length ||
       m.styleGuideSelection.some((id) => !m.appliedStyleGuideSet.includes(id)),
     spriteAcquisition: m.spriteAcquisition,
+    spriteOriginalFilename: m.spriteOriginalFilename,
     spritePaletteLock: m.spritePaletteLock,
     backgroundSuitability: m.backgroundSuitability,
     motionPrompt: m.motionPrompt,
@@ -192,7 +200,7 @@ export function toView(m: ProjectManifest): ProjectView {
     subjectFillMeasured: m.subjectFillMeasured ?? null,
     frames: m.frames.map((f) => base + f),
     selectedFrameIndices: m.selectedFrameIndices,
-    sourceVideoUrl: m.frames.length > 0 ? base + PROJECT_FILES.source : null,
+    sourceVideoUrl: m.sourceVideo ? base + m.sourceVideo : null,
     spritesheetUrl: m.spritesheet ? base + m.spritesheet : null,
     previewGifUrl: m.previewGif ? base + m.previewGif : null,
     updatedAt: m.updatedAt,
@@ -218,6 +226,12 @@ export async function pruneUnreferencedStyleGuides(
     }),
   );
   return writeManifest("latest", { ...manifest, styleGuideImages: retained });
+}
+
+export async function wipeLatestMotionArtifacts(): Promise<void> {
+  const sourceVideo = path.join(LATEST_DIR, PROJECT_FILES.source);
+  if (existsSync(sourceVideo)) await rm(sourceVideo, { force: true });
+  await wipeLatestFramesAndSheet();
 }
 
 export async function wipeLatestFramesAndSheet(): Promise<void> {

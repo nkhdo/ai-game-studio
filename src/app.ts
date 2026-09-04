@@ -1,10 +1,11 @@
 import {
-  animateSprite,
   checkHealth,
   commitSpriteUpload,
   deleteProject,
   discardSpriteUpload,
   generateSprite,
+  generateMotionVideo,
+  generateMovementFrames,
   getCurrentProject,
   getImageModels,
   getVideoModels,
@@ -13,14 +14,13 @@ import {
   newProject,
   prepareSpriteUpload,
   removeStyleGuide,
-  reextractFrames,
   saveProject,
   saveSelection,
   saveSpritesheet,
   type StyleGuideImageView,
   uploadStyleGuide,
 } from "./lib/api";
-import { Store, cacheBust, createInitialState, hydrateFromView } from "./lib/state";
+import { Store, createInitialState, hydrateFromView } from "./lib/state";
 import { composeSpritesheet, downloadDataUrl, loadImage } from "./lib/spritesheet";
 import {
   chevronIcon,
@@ -79,10 +79,13 @@ export function mountApp(root: HTMLElement) {
   const paletteLockInput = root.querySelector<HTMLInputElement>("#palette-lock")!;
   const hardAlphaEdgesInput = root.querySelector<HTMLInputElement>("#hard-alpha-edges")!;
   const paletteDiagnostics = root.querySelector<HTMLDivElement>("#palette-diagnostics")!;
+  const generateVideoBtn = root.querySelector<HTMLButtonElement>("#btn-generate-video")!;
   const generateFramesBtn = root.querySelector<HTMLButtonElement>("#btn-generate-frames")!;
-  const reextractFramesBtn = root.querySelector<HTMLButtonElement>("#btn-reextract-frames")!;
-  const reextractFramesHint = root.querySelector<HTMLDivElement>("#reextract-frames-hint")!;
+  const videoStatus = root.querySelector<HTMLDivElement>("#video-status")!;
+  const videoSettingsNotice = root.querySelector<HTMLDivElement>("#video-settings-notice")!;
+  const frameOptionsNotice = root.querySelector<HTMLDivElement>("#frame-options-notice")!;
   const framesGrid = root.querySelector<HTMLDivElement>("#frames-grid")!;
+  const framesHeading = root.querySelector<HTMLDivElement>("#frames-heading")!;
   const selectAllFramesBtn = root.querySelector<HTMLButtonElement>("#btn-select-all-frames")!;
   const deselectAllFramesBtn = root.querySelector<HTMLButtonElement>("#btn-deselect-all-frames")!;
   const framesStatus = root.querySelector<HTMLDivElement>("#frames-status")!;
@@ -99,6 +102,24 @@ export function mountApp(root: HTMLElement) {
   const saveBtn = root.querySelector<HTMLButtonElement>("#btn-save-project")!;
   const loadBtn = root.querySelector<HTMLButtonElement>("#btn-load-project")!;
   const loadMenu = root.querySelector<HTMLDivElement>("#load-menu")!;
+  const accordionItems = [
+    ...root.querySelectorAll<HTMLElement>("[data-accordion-step]"),
+  ];
+
+  function openAccordionStep(step: number) {
+    for (const item of accordionItems) {
+      const isOpen = Number(item.dataset.accordionStep) === step;
+      item.classList.toggle("is-open", isOpen);
+      item.querySelector<HTMLButtonElement>(".accordion-trigger")
+        ?.setAttribute("aria-expanded", String(isOpen));
+    }
+  }
+
+  for (const item of accordionItems) {
+    item.querySelector<HTMLButtonElement>(".accordion-trigger")?.addEventListener("click", () => {
+      openAccordionStep(Number(item.dataset.accordionStep));
+    });
+  }
 
   // ---- Event handlers ----
   promptInput.addEventListener("input", () => {
@@ -281,7 +302,7 @@ export function mountApp(root: HTMLElement) {
       if (
         prepared.requiresConfirmation &&
         !window.confirm(
-          "Replace the Reference Sprite? Existing movement frames and spritesheet will be removed.",
+          "Replace the Reference Sprite? Existing video, movement frames, and spritesheet will be removed.",
         )
       ) {
         await discardSpriteUpload();
@@ -295,7 +316,10 @@ export function mountApp(root: HTMLElement) {
       promptInput.value = promptDraft;
       motionInput.value = view.motionPrompt;
       setStatus(spriteStatus, "Reference sprite uploaded.", "success");
+      setStatus(videoStatus, "");
+      setStatus(framesStatus, "");
       toast("Reference sprite uploaded");
+      openAccordionStep(2);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to upload image";
       store.set({ status: "error", errorMessage: message });
@@ -344,7 +368,10 @@ export function mountApp(root: HTMLElement) {
         spriteDimensions: { w: img.naturalWidth, h: img.naturalHeight },
       });
       setStatus(spriteStatus, "Reference sprite ready.", "success");
+      setStatus(videoStatus, "");
+      setStatus(framesStatus, "");
       toast("Reference sprite generated");
+      openAccordionStep(2);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to generate sprite";
       store.set({ status: "error", errorMessage: message });
@@ -352,15 +379,23 @@ export function mountApp(root: HTMLElement) {
     }
   });
 
-  generateFramesBtn.addEventListener("click", async () => {
+  generateVideoBtn.addEventListener("click", async () => {
     const state = store.get();
     if (!state.spriteSrc) {
-      setStatus(framesStatus, "Generate a reference sprite first.", "error");
+      setStatus(videoStatus, "Generate a reference sprite first.", "error");
       return;
     }
     const text = state.motionPrompt.trim();
     if (!text) {
-      setStatus(framesStatus, "Enter a movement prompt first.", "error");
+      setStatus(videoStatus, "Enter a movement prompt first.", "error");
+      return;
+    }
+    if (
+      (state.frames.length > 0 || state.spritesheetSrc) &&
+      !window.confirm(
+        "Generate a new video? Existing frames, frame selection, spritesheet, and preview will be removed after the new video succeeds.",
+      )
+    ) {
       return;
     }
     store.set({ status: "generating-video", errorMessage: null });
@@ -375,71 +410,45 @@ export function mountApp(root: HTMLElement) {
       : 1;
     const submittedSize = appliedSize ? appliedSize * multiplier : null;
     setStatus(
-      framesStatus,
+      videoStatus,
       appliedSize && submittedSize && submittedSize !== appliedSize
         ? `${spinner()}Preparing ${selectedModel?.label ?? "video"} input: ${appliedSize} × ${appliedSize} → ${submittedSize} × ${submittedSize}…`
         : `${spinner()}Generating motion video…`,
     );
     try {
-      const view = await animateSprite(
-        text,
-        state.motionModel,
-        state.paletteLock,
-        state.hardAlphaEdges,
-      );
-      const v = view.updatedAt;
-      store.set({
-        status: "done",
-        frames: view.frames.map((f) => cacheBust(f, v)!),
-        motionVideoSrc: cacheBust(view.sourceVideoUrl, v),
-        selectedFrameIndices: new Set(view.selectedFrameIndices),
-        spritesheetSrc: null,
-        spritesheetCols: null,
-        previewGifSrc: null,
-        previewGifBuilding: false,
-        preservedOffPalettePixels: view.preservedOffPalettePixels,
-        removedLowAlphaPixels: view.removedLowAlphaPixels,
-        removedChromaFringePixels: view.removedChromaFringePixels,
-        appliedPaletteLock: view.paletteLock,
-        appliedHardAlphaEdges: view.hardAlphaEdges,
-      });
-      const diagnostics = [
-        view.preservedOffPalettePixels
-          ? `preserved ${view.preservedOffPalettePixels.toLocaleString()} uncertain-color pixels`
-          : null,
-        view.removedLowAlphaPixels
-          ? `removed ${view.removedLowAlphaPixels.toLocaleString()} low-alpha pixels`
-          : null,
-        view.removedChromaFringePixels
-          ? `removed ${view.removedChromaFringePixels.toLocaleString()} chroma-fringe pixels`
-          : null,
-      ].filter(Boolean);
-      setStatus(
-        framesStatus,
-        `Extracted ${view.frames.length} frames${diagnostics.length ? `; ${diagnostics.join(", ")}` : ""}.`,
-        "success",
-      );
-      toast("Frames extracted");
+      const view = await generateMotionVideo(text, state.motionModel);
+      store.set({ ...hydrateFromView(view), status: "done", errorMessage: null });
+      setStatus(videoStatus, "Video ready — choose frame options in step 2.2.", "success");
+      setStatus(framesStatus, "Choose frame options, then generate frames.");
+      toast("Movement video generated");
+      openAccordionStep(3);
+      generateFramesBtn.focus({ preventScroll: true });
+      generateFramesBtn.scrollIntoView({ behavior: "smooth", block: "center" });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to generate frames";
+      const message = err instanceof Error ? err.message : "Failed to generate video";
       store.set({ status: "error", errorMessage: message });
-      setStatus(framesStatus, message, "error");
+      setStatus(videoStatus, message, "error");
     }
   });
 
-  reextractFramesBtn.addEventListener("click", async () => {
+  generateFramesBtn.addEventListener("click", async () => {
     const state = store.get();
-    if (!state.motionVideoSrc) return;
+    if (!state.motionVideoSrc) {
+      setStatus(framesStatus, "Generate a video in step 2.1 first.", "error");
+      return;
+    }
     store.set({ status: "extracting-frames", errorMessage: null });
-    setStatus(framesStatus, `${spinner()}Re-extracting frames from the generated video…`);
+    setStatus(framesStatus, `${spinner()}Generating frames from the video…`);
     try {
-      const view = await reextractFrames(state.paletteLock, state.hardAlphaEdges);
+      const view = await generateMovementFrames(state.paletteLock, state.hardAlphaEdges);
       const patch = hydrateFromView(view);
       store.set({ ...patch, status: "done", errorMessage: null });
-      setStatus(framesStatus, `Re-extracted ${view.frames.length} frames.`, "success");
-      toast("Frames re-extracted");
+      setStatus(framesStatus, `Generated ${view.frames.length} frames.`, "success");
+      toast("Frames generated");
+      framesHeading.focus({ preventScroll: true });
+      framesHeading.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to re-extract frames";
+      const message = err instanceof Error ? err.message : "Failed to generate frames";
       store.set({ status: "error", errorMessage: message });
       setStatus(framesStatus, message, "error");
     }
@@ -564,6 +573,7 @@ export function mountApp(root: HTMLElement) {
       const view = await newProject();
       applyView(view);
       setStatus(spriteStatus, "", "info");
+      setStatus(videoStatus, "", "info");
       setStatus(framesStatus, "", "info");
       toast("Started a new project");
     } catch (err) {
@@ -671,6 +681,9 @@ export function mountApp(root: HTMLElement) {
     store.set(patch);
     promptInput.value = view.spritePrompt;
     motionInput.value = view.motionPrompt;
+    setStatus(videoStatus, "");
+    setStatus(framesStatus, "");
+    openAccordionStep(view.sourceVideoUrl ? 3 : view.spriteUrl ? 2 : 1);
   }
 
   let lastImageModelOptionsKey = "";
@@ -736,13 +749,11 @@ export function mountApp(root: HTMLElement) {
     targetSizeSelect.disabled = busy;
     subjectFillSelect.disabled = busy;
     colorCountSelect.disabled = busy;
-    generateFramesBtn.disabled = busy || !state.spriteSrc;
+    generateVideoBtn.disabled = busy || !state.spriteSrc || !state.hasApiKey;
+    generateFramesBtn.disabled = busy || !state.motionVideoSrc;
     const extractionOptionsChanged =
       state.paletteLock !== state.appliedPaletteLock ||
       state.hardAlphaEdges !== state.appliedHardAlphaEdges;
-    reextractFramesBtn.hidden = !state.motionVideoSrc;
-    reextractFramesHint.hidden = !state.motionVideoSrc;
-    reextractFramesBtn.disabled = busy || !extractionOptionsChanged;
     generateSheetBtn.disabled = busy || state.frames.length === 0;
     selectAllFramesBtn.disabled =
       busy || state.selectedFrameIndices.size === state.frames.length;
@@ -761,9 +772,9 @@ export function mountApp(root: HTMLElement) {
     apiKeyWarning.hidden = state.hasApiKey || !generateMode;
     spritePaletteLockInput.disabled = busy || state.styleGuides.length === 0;
     spritePaletteLockInput.checked = state.spritePaletteLock;
-    paletteLockInput.disabled = busy;
+    paletteLockInput.disabled = busy || !state.motionVideoSrc;
     paletteLockInput.checked = state.paletteLock;
-    hardAlphaEdgesInput.disabled = busy;
+    hardAlphaEdgesInput.disabled = busy || !state.motionVideoSrc;
     hardAlphaEdgesInput.checked = state.hardAlphaEdges;
     const diagnosticParts = [
       state.preservedOffPalettePixels !== null
@@ -776,8 +787,31 @@ export function mountApp(root: HTMLElement) {
         ? `${state.removedChromaFringePixels.toLocaleString()} chroma-fringe pixels removed`
         : null,
     ].filter(Boolean);
-    paletteDiagnostics.textContent = diagnosticParts.join(" · ");
+    paletteDiagnostics.textContent = diagnosticParts.length
+      ? `Current frames: ${diagnosticParts.join(" · ")}`
+      : "";
     paletteDiagnostics.hidden = diagnosticParts.length === 0;
+    const videoSettingsChanged =
+      Boolean(state.motionVideoSrc) &&
+      (state.motionPrompt.trim() !== state.appliedMotionPrompt ||
+        state.motionModel !== state.appliedMotionModel);
+    setStatus(
+      videoSettingsNotice,
+      !state.hasApiKey
+        ? "OPENROUTER_API_KEY is required to generate video. Existing videos can still be processed below."
+        : videoSettingsChanged
+          ? "Settings changed — generate a new video to apply."
+          : "",
+      !state.hasApiKey ? "error" : "info",
+    );
+    setStatus(
+      frameOptionsNotice,
+      !state.motionVideoSrc
+        ? "Generate a video in step 2.1 first."
+        : state.frames.length > 0 && extractionOptionsChanged
+          ? "Options changed — generate frames to apply. Current frames are unchanged."
+          : "",
+    );
     styleGuideCount.textContent = `${state.styleGuides.length}/${MAX_STYLE_GUIDE_IMAGES}`;
     styleGuideList.innerHTML = renderStyleGuideImages(state.styleGuides, busy);
     styleGuidesInactive.hidden = state.styleGuides.length === 0;
@@ -821,7 +855,7 @@ export function mountApp(root: HTMLElement) {
       renderedMotionVideoSrc = state.motionVideoSrc;
       motionVideoPreview.innerHTML = state.motionVideoSrc
         ? `<video src="${escapeAttr(state.motionVideoSrc)}" aria-label="Generated movement video" controls loop playsinline preload="metadata">Your browser does not support video playback.</video>`
-        : `<span class="motion-video-preview__placeholder">Generate frames to preview the source video</span>`;
+        : `<span class="motion-video-preview__placeholder">Generate a video to preview it here</span>`;
     }
 
     const frameSizeValue = String(state.frameSize);
@@ -1034,9 +1068,13 @@ function renderShell(): string {
 
       <main class="app-main">
         <div class="columns">
+          <div class="workflow-accordion">
 
-          <section class="card">
-            <h2 class="card__title">1. Choose Reference Sprite</h2>
+          <section class="card accordion-item is-open" data-accordion-step="1">
+            <button class="accordion-trigger" type="button" aria-expanded="true">
+              <span>1. Choose Reference Sprite</span><span class="accordion-trigger__icon" aria-hidden="true"></span>
+            </button>
+            <div class="panel-body">
             <div class="mode-switch" role="group" aria-label="Reference sprite acquisition method">
               <button id="mode-generate" class="mode-switch__button is-active" type="button" aria-pressed="true">
                 Generate
@@ -1159,79 +1197,96 @@ function renderShell(): string {
               </div>
               <div id="fill-warning" class="background-warning" hidden></div>
             </div>
+            </div>
           </section>
 
-          <section class="card">
-            <h2 class="card__title">2. Generate Movement Frames</h2>
-            <div class="field">
-              <label class="field__label" for="motion-prompt">Movement Prompt</label>
-              <textarea
-                id="motion-prompt"
-                class="textarea"
-                placeholder="e.g., walking left, jump, attack right…"
-                rows="3"
-              ></textarea>
-            </div>
-            <div class="motion-controls">
-              <div class="field motion-controls__model">
-                <label class="field__label" for="motion-model">Model</label>
-                <select id="motion-model" class="select"></select>
+            <section class="card movement-step accordion-item" data-accordion-step="2">
+              <button class="accordion-trigger" type="button" aria-expanded="false">
+                <span>2. Generate Video</span><span class="accordion-trigger__icon" aria-hidden="true"></span>
+              </button>
+              <div class="panel-body">
+              <div class="field">
+                <label class="field__label" for="motion-prompt">Movement Prompt</label>
+                <textarea
+                  id="motion-prompt"
+                  class="textarea"
+                  placeholder="e.g., walking left, jump, attack right…"
+                  rows="3"
+                ></textarea>
               </div>
-              <button id="btn-generate-frames" class="btn btn--secondary motion-controls__btn" type="button">
+              <div class="motion-controls">
+                <div class="field motion-controls__model">
+                  <label class="field__label" for="motion-model">Model</label>
+                  <select id="motion-model" class="select"></select>
+                </div>
+                <button id="btn-generate-video" class="btn btn--secondary motion-controls__btn" type="button">
+                  ${frameIcon}
+                  Generate Video
+                </button>
+              </div>
+              <div id="video-model-guidance" class="geometry-hint"></div>
+              <div id="video-settings-notice" class="status"></div>
+              <div id="video-status" class="status"></div>
+              <div class="motion-video-section">
+                <div class="motion-video-section__label">Generated Video</div>
+                <div id="motion-video-preview" class="motion-video-preview">
+                  <span class="motion-video-preview__placeholder">Generate a video to preview it here</span>
+                </div>
+              </div>
+              </div>
+            </section>
+
+            <section class="card movement-step accordion-item" data-accordion-step="3">
+              <button class="accordion-trigger" type="button" aria-expanded="false">
+                <span>3. Generate Frames</span><span class="accordion-trigger__icon" aria-hidden="true"></span>
+              </button>
+              <div class="panel-body">
+              <label class="style-match-row" for="palette-lock">
+                <input id="palette-lock" class="style-match-row__input" type="checkbox" />
+                <span class="style-match-row__text">
+                  <span class="style-match-row__title">Palette Lock</span>
+                  <span class="style-match-row__hint">Restrict frame colors to the Reference Sprite's palette</span>
+                </span>
+              </label>
+              <label class="style-match-row" for="hard-alpha-edges">
+                <input id="hard-alpha-edges" class="style-match-row__input" type="checkbox" />
+                <span class="style-match-row__text">
+                  <span class="style-match-row__title">Hard Alpha Edges</span>
+                  <span class="style-match-row__hint">Convert extracted frames to fully opaque or fully transparent pixels</span>
+                </span>
+              </label>
+              <button id="btn-generate-frames" class="btn btn--secondary btn--block" type="button">
                 ${frameIcon}
                 Generate Frames
               </button>
-            </div>
-            <label class="style-match-row" for="palette-lock">
-              <input id="palette-lock" class="style-match-row__input" type="checkbox" />
-              <span class="style-match-row__text">
-                <span class="style-match-row__title">Palette Lock</span>
-                <span class="style-match-row__hint">Restrict frame colors to the Reference Sprite's palette</span>
-              </span>
-            </label>
-            <label class="style-match-row" for="hard-alpha-edges">
-              <input id="hard-alpha-edges" class="style-match-row__input" type="checkbox" />
-              <span class="style-match-row__text">
-                <span class="style-match-row__title">Hard Alpha Edges</span>
-                <span class="style-match-row__hint">Convert extracted frames to fully opaque or fully transparent pixels</span>
-              </span>
-            </label>
-            <button id="btn-reextract-frames" class="btn btn--secondary btn--reextract" type="button" hidden>
-              ${frameIcon}
-              Re-generate Frames from Video
-            </button>
-            <div id="reextract-frames-hint" class="geometry-hint" hidden>Uses the existing video and does not run the video model again.</div>
-            <div id="palette-diagnostics" class="geometry-hint" hidden></div>
-            <div id="video-model-guidance" class="geometry-hint"></div>
-            <div id="frames-status" class="status"></div>
-            <div class="motion-video-section">
-              <div class="motion-video-section__label">Generated Video</div>
-              <div id="motion-video-preview" class="motion-video-preview">
-                <span class="motion-video-preview__placeholder">Generate frames to preview the source video</span>
-              </div>
-            </div>
-            <div class="frames-section">
-              <div class="frames-section__header">
-                <div class="frames-section__label">Select frames to include</div>
-                <div class="frames-section__actions">
-                  <button id="btn-select-all-frames" class="btn btn--link btn--sm" type="button">
-                    Select All
-                  </button>
-                  <button id="btn-deselect-all-frames" class="btn btn--link btn--sm" type="button">
-                    Deselect All
-                  </button>
+              <div id="frame-options-notice" class="status"></div>
+              <div id="palette-diagnostics" class="geometry-hint" hidden></div>
+              <div id="frames-status" class="status"></div>
+              <div class="frames-section">
+                <div class="frames-section__header">
+                  <div id="frames-heading" class="frames-section__label" tabindex="-1">Select frames to include</div>
+                  <div class="frames-section__actions">
+                    <button id="btn-select-all-frames" class="btn btn--link btn--sm" type="button">
+                      Select All
+                    </button>
+                    <button id="btn-deselect-all-frames" class="btn btn--link btn--sm" type="button">
+                      Deselect All
+                    </button>
+                  </div>
                 </div>
+                <div id="frames-grid" class="frames-grid"></div>
               </div>
-              <div id="frames-grid" class="frames-grid"></div>
-            </div>
-            <button id="btn-generate-sheet" class="btn btn--primary btn--block btn--lg" type="button">
-              ${gridIcon}
-              Generate Spritesheet
-            </button>
-          </section>
+              <button id="btn-generate-sheet" class="btn btn--primary btn--block btn--lg" type="button">
+                ${gridIcon}
+                Generate Spritesheet
+              </button>
+              </div>
+            </section>
+          </div>
 
           <section class="card">
-            <h2 class="card__title">3. Spritesheet Preview</h2>
+            <h2 class="card__title">4. Spritesheet Preview</h2>
+            <div class="panel-body">
             <div id="sheet-preview" class="sheet-preview">
               <span class="sheet-preview__placeholder">Generate a spritesheet to preview here</span>
             </div>
@@ -1247,6 +1302,7 @@ function renderShell(): string {
               <div id="gif-preview" class="gif-preview">
                 <span class="gif-preview__placeholder">Generate a spritesheet to see the animation</span>
               </div>
+            </div>
             </div>
           </section>
 

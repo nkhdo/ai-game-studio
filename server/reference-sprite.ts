@@ -3,13 +3,14 @@ import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
+import { DEFAULT_VIDEO_MODEL } from "./video.js";
 import { ensureInsideRoot, LATEST_DIR, PROJECT_FILES } from "./files.js";
 import {
   pruneUnreferencedStyleGuides,
   readManifest,
   toView,
   updateLatest,
-  wipeLatestFramesAndSheet,
+  wipeLatestMotionArtifacts,
 } from "./projects.js";
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -277,7 +278,9 @@ export async function prepareReferenceUpload(
   return {
     ...prepared,
     requiresConfirmation:
-      manifest.frames.length > 0 || Boolean(manifest.spritesheet || manifest.previewGif),
+      Boolean(manifest.sourceVideo) ||
+      manifest.frames.length > 0 ||
+      Boolean(manifest.spritesheet || manifest.previewGif),
   };
 }
 
@@ -302,7 +305,7 @@ export async function commitReferenceUpload(uploadId: string) {
   ensureInsideRoot(refAbs);
   await mkdir(path.dirname(refAbs), { recursive: true });
   await rename(PREPARED_IMAGE, refAbs);
-  await wipeLatestFramesAndSheet();
+  await wipeLatestMotionArtifacts();
   await discardPreparedUpload();
 
   let manifest = await updateLatest({
@@ -317,6 +320,9 @@ export async function commitReferenceUpload(uploadId: string) {
     subjectFillPct: prepared.subjectFillPct,
     colorCount: prepared.colorCount,
     subjectFillMeasured: prepared.subjectFillMeasured,
+    sourceVideo: null,
+    motionPrompt: "",
+    motionModel: DEFAULT_VIDEO_MODEL,
     frames: [],
     selectedFrameIndices: [],
     spritesheet: null,

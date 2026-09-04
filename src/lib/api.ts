@@ -172,20 +172,18 @@ export function discardSpriteUpload(): Promise<{ ok: boolean }> {
   return postJson("/api/sprites/upload/discard", {});
 }
 
-export function animateSprite(
+export function generateMotionVideo(
   text: string,
   model?: string,
-  paletteLock?: boolean,
-  hardAlphaEdges?: boolean,
 ): Promise<ProjectView> {
-  return postJson("/api/sprites/animate", { text, model, paletteLock, hardAlphaEdges });
+  return postJson("/api/sprites/video", { text, model });
 }
 
-export function reextractFrames(
+export function generateMovementFrames(
   paletteLock: boolean,
   hardAlphaEdges: boolean,
 ): Promise<ProjectView> {
-  return postJson("/api/sprites/reextract", { paletteLock, hardAlphaEdges });
+  return postJson("/api/sprites/frames", { paletteLock, hardAlphaEdges });
 }
 
 export function getVideoModels(): Promise<VideoModelsResponse> {

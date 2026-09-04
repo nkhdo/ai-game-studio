@@ -58,9 +58,11 @@ button {
 
 /* ---------- App shell ---------- */
 .app {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .app-header {
@@ -224,19 +226,22 @@ button {
 .app-main {
   padding: 24px;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .columns {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 600px) minmax(0, 1fr);
   gap: 20px;
-  max-width: 1280px;
-  margin: 0 auto;
+  height: 100%;
+  min-height: 0;
 }
 
 @media (max-width: 1024px) {
   .columns {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -252,6 +257,26 @@ button {
   gap: 14px;
   min-height: 480px;
   min-width: 0;
+}
+
+.columns > .card {
+  height: 100%;
+  min-height: 0;
+}
+
+.columns > .card > .panel-body {
+  flex: 1;
+}
+
+.panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 .card__title {
@@ -488,11 +513,6 @@ button {
   color: var(--text-subtle);
 }
 
-.btn--reextract {
-  width: 100%;
-  margin-top: 10px;
-}
-
 .geometry-hint {
   margin-top: -2px;
   color: var(--text-muted);
@@ -608,6 +628,74 @@ button {
   height: 36px;
 }
 
+.workflow-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.workflow-accordion .card {
+  min-height: 0;
+}
+
+.accordion-item {
+  flex: 0 0 auto;
+}
+
+.accordion-item.is-open {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.accordion-item.is-open > .panel-body {
+  flex: 1;
+}
+
+.accordion-item:not(.is-open) > .panel-body {
+  display: none;
+}
+
+.accordion-item[data-accordion-step="3"] > .panel-body {
+  overflow-y: hidden;
+}
+
+.accordion-trigger {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.accordion-trigger__icon {
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  transform: rotate(45deg);
+  transition: transform 120ms ease;
+}
+
+.accordion-item.is-open .accordion-trigger__icon {
+  transform: rotate(225deg);
+}
+
+.movement-step .motion-video-section,
+.movement-step .frames-section {
+  margin-top: 2px;
+}
+
 /* ---------- Buttons ---------- */
 .btn {
   display: inline-flex;
@@ -692,7 +780,7 @@ button {
 
 .preview__box {
   width: 100%;
-  aspect-ratio: 1 / 1;
+  height: 260px;
   background:
     repeating-conic-gradient(#f3f4f6 0% 25%, #ffffff 0% 50%) 0 0 / 18px 18px;
   border: 1px solid var(--border);
@@ -776,6 +864,11 @@ button {
   gap: 8px;
 }
 
+.accordion-item[data-accordion-step="3"] .frames-section {
+  flex: 1;
+  min-height: 0;
+}
+
 .frames-section__header {
   display: flex;
   align-items: center;
@@ -796,15 +889,15 @@ button {
 
 .frames-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   grid-auto-rows: 76px;
   gap: 8px;
-  height: 340px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scroll-behavior: smooth;
-  padding: 4px 8px 4px 4px;
   scrollbar-gutter: stable;
+  padding: 4px 8px 4px 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: #fafafa;
@@ -991,7 +1084,6 @@ button {
 .status {
   font-size: 12px;
   color: var(--text-muted);
-  min-height: 16px;
 }
 
 .status--error {

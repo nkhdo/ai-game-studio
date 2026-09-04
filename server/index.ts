@@ -2,7 +2,7 @@ import "dotenv/config";
 import express, { type Request, type Response, type NextFunction } from "express";
 import multer from "multer";
 import path from "node:path";
-import { readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import {
   DEFAULT_IMAGE_MODEL,
@@ -46,9 +46,9 @@ import {
   toView,
   updateLatest,
   wipeLatestFramesAndSheet,
+  wipeLatestMotionArtifacts,
   wipeLatestSpritesheet,
 } from "./projects.js";
-import { rm } from "node:fs/promises";
 import {
   DEFAULT_TARGET_FRAME_SIZE,
   TARGET_FRAME_SIZES,
@@ -264,8 +264,8 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
     const applied = await applyTargetGeometry(normalized.buffer, geometry);
     const base64 = applied.buffer.toString("base64");
 
-    // Reset downstream artifacts (frames + spritesheet) before writing the new sprite
-    await wipeLatestFramesAndSheet();
+    // A replacement sprite invalidates its video and every downstream artifact.
+    await wipeLatestMotionArtifacts();
 
     const refAbs = path.join(LATEST_DIR, PROJECT_FILES.ref);
     await saveBase64Image(base64, refAbs);
@@ -286,6 +286,9 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       subjectFillPct: geometry.subjectFillPct,
       colorCount: geometry.colorCount,
       subjectFillMeasured: applied.subjectFillMeasured,
+      sourceVideo: null,
+      motionPrompt: "",
+      motionModel: DEFAULT_VIDEO_MODEL,
       frames: [],
       selectedFrameIndices: [],
       spritesheet: null,
@@ -343,14 +346,12 @@ app.post("/api/sprites/upload/discard", async (_req, res) => {
   }
 });
 
-app.post("/api/sprites/animate", requireKey, async (req, res) => {
+app.post("/api/sprites/video", requireKey, async (req, res) => {
   try {
     const text = asString(req.body?.text, "text");
     const model = isVideoModelId(req.body?.model) ? req.body.model : DEFAULT_VIDEO_MODEL;
     const duration =
       typeof req.body?.duration === "number" ? req.body.duration : defaultDurationFor(model);
-    const paletteLock = req.body?.paletteLock === true;
-    const hardAlphaEdges = req.body?.hardAlphaEdges === true;
 
     const current = await readManifest("latest");
     if (!current.sprite || !current.targetFrameSize) {
@@ -368,39 +369,35 @@ app.post("/api/sprites/animate", requireKey, async (req, res) => {
     const spriteBuffer = await readFile(spriteAbs);
     const imageInput = await normalizeVideoInput(spriteBuffer, model);
 
-    await wipeLatestSpritesheet();
-
     const video = await generateSpriteMotionVideo(
       imageInput.dataUrl,
       text,
       duration,
       model,
-      paletteLock,
+      false,
     );
     const videoAbs = path.join(LATEST_DIR, PROJECT_FILES.source);
-    await downloadVideo(video.url, videoAbs, video.headers);
+    await mkdir(LATEST_DIR, { recursive: true });
+    const tempDir = await mkdtemp(path.join(LATEST_DIR, ".tmp-video-"));
+    const tempVideo = path.join(tempDir, PROJECT_FILES.source);
+    try {
+      await downloadVideo(video.url, tempVideo, video.headers);
+      await rename(tempVideo, videoAbs);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
 
-    const framesAbs = path.join(LATEST_DIR, PROJECT_FILES.framesDir);
-    const extraction = await extractFrames(
-      videoAbs,
-      framesAbs,
-      current.targetFrameSize.w,
-      {
-        referenceSprite: paletteLock ? spriteBuffer : undefined,
-        hardAlphaEdges,
-      },
-    );
-    const frames = extraction.files.map((f) => `${PROJECT_FILES.framesDir}/${f}`);
+    await wipeLatestFramesAndSheet();
 
     const m = await updateLatest({
       motionPrompt: text,
       motionModel: model,
-      frames,
-      paletteLock,
-      hardAlphaEdges,
-      preservedOffPalettePixels: extraction.preservedOffPalettePixels,
-      removedLowAlphaPixels: extraction.removedLowAlphaPixels,
-      removedChromaFringePixels: extraction.removedChromaFringePixels,
+      sourceVideo: PROJECT_FILES.source,
+      frames: [],
+      selectedFrameIndices: [],
+      preservedOffPalettePixels: null,
+      removedLowAlphaPixels: null,
+      removedChromaFringePixels: null,
       spritesheet: null,
       previewGif: null,
     });
@@ -411,7 +408,7 @@ app.post("/api/sprites/animate", requireKey, async (req, res) => {
   }
 });
 
-app.post("/api/sprites/reextract", async (req, res) => {
+app.post("/api/sprites/frames", async (req, res) => {
   try {
     const paletteLock = req.body?.paletteLock === true;
     const hardAlphaEdges = req.body?.hardAlphaEdges === true;
@@ -426,20 +423,39 @@ app.post("/api/sprites/reextract", async (req, res) => {
       throw new Error("current Reference Sprite has invalid applied target geometry");
     }
 
-    const videoAbs = path.join(LATEST_DIR, PROJECT_FILES.source);
+    if (!current.sourceVideo) throw new Error("generate a video before generating frames");
+    const videoAbs = path.join(LATEST_DIR, current.sourceVideo);
     const spriteAbs = path.join(LATEST_DIR, current.sprite);
     ensureInsideRoot(videoAbs);
     ensureInsideRoot(spriteAbs);
     if (!existsSync(videoAbs)) throw new Error("generated source video not found on disk");
     if (!existsSync(spriteAbs)) throw new Error("Reference Sprite not found on disk");
 
-    await wipeLatestSpritesheet();
     const spriteBuffer = await readFile(spriteAbs);
     const framesAbs = path.join(LATEST_DIR, PROJECT_FILES.framesDir);
-    const extraction = await extractFrames(videoAbs, framesAbs, current.targetFrameSize.w, {
-      referenceSprite: paletteLock ? spriteBuffer : undefined,
-      hardAlphaEdges,
-    });
+    const tempRoot = await mkdtemp(path.join(LATEST_DIR, ".tmp-frames-"));
+    const pendingFrames = path.join(tempRoot, "pending");
+    const previousFrames = path.join(tempRoot, "previous");
+    let extraction;
+    try {
+      extraction = await extractFrames(videoAbs, pendingFrames, current.targetFrameSize.w, {
+        referenceSprite: paletteLock ? spriteBuffer : undefined,
+        hardAlphaEdges,
+      });
+      const hadPreviousFrames = existsSync(framesAbs);
+      if (hadPreviousFrames) await rename(framesAbs, previousFrames);
+      try {
+        await rename(pendingFrames, framesAbs);
+      } catch (error) {
+        if (hadPreviousFrames && existsSync(previousFrames)) {
+          await rename(previousFrames, framesAbs);
+        }
+        throw error;
+      }
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+    await wipeLatestSpritesheet();
     const frames = extraction.files.map((file) => `${PROJECT_FILES.framesDir}/${file}`);
     const manifest = await updateLatest({
       frames,

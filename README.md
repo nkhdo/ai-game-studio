@@ -39,11 +39,12 @@ This starts Vite (frontend, :5173) and an Express server (backend, :8787) togeth
 ## Using it
 
 1. In column 1, either generate a Reference Sprite from a prompt or upload an existing PNG, JPEG, or WebP image (10 MB maximum).
-2. Pick a video model and type a motion prompt in column 2 → **Generate Frames** (calls image-to-video via OpenRouter, polls until done, extracts transparent PNGs).
-3. Click frame tiles to toggle which ones to include.
-4. **Generate Spritesheet** → composes a 1×N PNG client-side, builds a looping GIF preview server-side.
-5. **Export PNG** to download the spritesheet.
-6. Header: **New** to start fresh, **Save** to name and snapshot the current project, **Load** to switch to a saved one.
+2. Pick a video model and type a motion prompt in column 2 → **Generate Video** (calls image-to-video via OpenRouter and retains the downloaded source video).
+3. Choose Palette Lock and Hard Alpha Edges options → **Generate Frames** (locally extracts transparent PNGs from the retained video without another model call).
+4. Click frame tiles to toggle which ones to include.
+5. **Generate Spritesheet** → composes a 1×N PNG client-side, builds a looping GIF preview server-side.
+6. **Export PNG** to download the spritesheet.
+7. Header: **New** to start fresh, **Save** to name and snapshot the current project, **Load** to switch to a saved one.
 
 Generated artifacts live under `projects/` (gitignored). The current working state is always in `projects/latest/`.
 
