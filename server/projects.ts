@@ -306,4 +306,8 @@ export async function deleteSavedProject(name: string): Promise<void> {
   if (existsSync(target)) {
     await rm(target, { recursive: true, force: true });
   }
+  const latest = await readManifest("latest");
+  if (latest.name === name) {
+    await writeManifest("latest", { ...latest, name: "latest" });
+  }
 }

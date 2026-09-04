@@ -21,6 +21,13 @@ import {
   uploadStyleGuide,
 } from "./lib/api";
 import { Store, createInitialState, hydrateFromView } from "./lib/state";
+import {
+  parseNavigation,
+  stepName,
+  stepNumber,
+  withNavigation,
+  type WorkflowStep,
+} from "./lib/navigation";
 import { composeSpritesheet, downloadDataUrl, loadImage } from "./lib/spritesheet";
 import {
   chevronIcon,
@@ -40,6 +47,12 @@ const MAX_STYLE_GUIDE_IMAGES = 3;
 
 export function mountApp(root: HTMLElement) {
   const store = new Store(createInitialState());
+  const initialNavigation = parseNavigation(new URL(window.location.href));
+  let activeStep = initialNavigation.step ? stepNumber(initialNavigation.step) : 1;
+  let lastView: import("./lib/api").ProjectView | null = null;
+  let cleanUpdatedAt: string | null = null;
+  let hasUnsavedInput = false;
+  let applyingNavigation = false;
   root.innerHTML = renderShell();
 
   const toast = createToast(root);
@@ -106,12 +119,26 @@ export function mountApp(root: HTMLElement) {
     ...root.querySelectorAll<HTMLElement>("[data-accordion-step]"),
   ];
 
-  function openAccordionStep(step: number) {
+  function writeNavigation(
+    mode: "push" | "replace",
+    project: string | null,
+    step: WorkflowStep = stepName(activeStep),
+  ) {
+    const next = withNavigation(new URL(window.location.href), { project, step });
+    window.history[mode === "push" ? "pushState" : "replaceState"]({}, "", next);
+  }
+
+  function openAccordionStep(step: number, syncUrl = true) {
+    activeStep = step;
     for (const item of accordionItems) {
       const isOpen = Number(item.dataset.accordionStep) === step;
       item.classList.toggle("is-open", isOpen);
       item.querySelector<HTMLButtonElement>(".accordion-trigger")
         ?.setAttribute("aria-expanded", String(isOpen));
+    }
+    if (syncUrl) {
+      const name = store.get().currentProjectName;
+      writeNavigation("replace", name === "latest" ? null : name);
     }
   }
 
@@ -123,14 +150,17 @@ export function mountApp(root: HTMLElement) {
 
   // ---- Event handlers ----
   promptInput.addEventListener("input", () => {
+    hasUnsavedInput = true;
     store.set({ spritePrompt: promptInput.value });
   });
 
   spriteModelSelect.addEventListener("change", () => {
+    hasUnsavedInput = true;
     store.set({ spriteModel: spriteModelSelect.value });
   });
 
   spritePaletteLockInput.addEventListener("change", () => {
+    hasUnsavedInput = true;
     store.set({ spritePaletteLock: spritePaletteLockInput.checked });
   });
 
@@ -143,14 +173,17 @@ export function mountApp(root: HTMLElement) {
   });
 
   targetSizeSelect.addEventListener("change", () => {
+    hasUnsavedInput = true;
     store.set({ frameSize: Number(targetSizeSelect.value) });
   });
 
   subjectFillSelect.addEventListener("change", () => {
+    hasUnsavedInput = true;
     store.set({ subjectFillPct: Number(subjectFillSelect.value) });
   });
 
   colorCountSelect.addEventListener("change", () => {
+    hasUnsavedInput = true;
     store.set({
       colorCount: colorCountSelect.value === "off" ? null : Number(colorCountSelect.value),
     });
@@ -311,6 +344,8 @@ export function mountApp(root: HTMLElement) {
         return;
       }
       const view = await commitSpriteUpload(prepared.uploadId);
+      lastView = view;
+      hasUnsavedInput = true;
       const patch = hydrateFromView(view);
       store.set({ ...patch, spritePrompt: promptDraft, status: "idle", errorMessage: null });
       promptInput.value = promptDraft;
@@ -330,16 +365,20 @@ export function mountApp(root: HTMLElement) {
   }
 
   motionInput.addEventListener("input", () => {
+    hasUnsavedInput = true;
     store.set({ motionPrompt: motionInput.value });
   });
 
   motionModelSelect.addEventListener("change", () => {
+    hasUnsavedInput = true;
     store.set({ motionModel: motionModelSelect.value });
   });
   paletteLockInput.addEventListener("change", () => {
+    hasUnsavedInput = true;
     store.set({ paletteLock: paletteLockInput.checked });
   });
   hardAlphaEdgesInput.addEventListener("change", () => {
+    hasUnsavedInput = true;
     store.set({ hardAlphaEdges: hardAlphaEdgesInput.checked });
   });
 
@@ -358,6 +397,8 @@ export function mountApp(root: HTMLElement) {
         subjectFillPct: state.subjectFillPct,
         colorCount: state.colorCount,
       }, state.spritePaletteLock);
+      lastView = result.view;
+      hasUnsavedInput = true;
       const img = await loadImage(result.dataUrl);
       const patch = hydrateFromView(result.view);
       store.set({
@@ -417,6 +458,8 @@ export function mountApp(root: HTMLElement) {
     );
     try {
       const view = await generateMotionVideo(text, state.motionModel);
+      lastView = view;
+      hasUnsavedInput = true;
       store.set({ ...hydrateFromView(view), status: "done", errorMessage: null });
       setStatus(videoStatus, "Video ready — choose frame options in step 2.2.", "success");
       setStatus(framesStatus, "Choose frame options, then generate frames.");
@@ -441,6 +484,8 @@ export function mountApp(root: HTMLElement) {
     setStatus(framesStatus, `${spinner()}Generating frames from the video…`);
     try {
       const view = await generateMovementFrames(state.paletteLock, state.hardAlphaEdges);
+      lastView = view;
+      hasUnsavedInput = true;
       const patch = hydrateFromView(view);
       store.set({ ...patch, status: "done", errorMessage: null });
       setStatus(framesStatus, `Generated ${view.frames.length} frames.`, "success");
@@ -466,6 +511,7 @@ export function mountApp(root: HTMLElement) {
     const next = new Set(state.selectedFrameIndices);
     if (next.has(index)) next.delete(index);
     else next.add(index);
+    hasUnsavedInput = true;
     store.set({ selectedFrameIndices: next });
     scheduleSelectionPersist();
   });
@@ -473,6 +519,7 @@ export function mountApp(root: HTMLElement) {
   selectAllFramesBtn.addEventListener("click", () => {
     const state = store.get();
     if (state.frames.length === 0) return;
+    hasUnsavedInput = true;
     store.set({
       selectedFrameIndices: new Set(state.frames.map((_, i) => i)),
     });
@@ -481,6 +528,7 @@ export function mountApp(root: HTMLElement) {
 
   deselectAllFramesBtn.addEventListener("click", () => {
     if (store.get().selectedFrameIndices.size === 0) return;
+    hasUnsavedInput = true;
     store.set({ selectedFrameIndices: new Set<number>() });
     scheduleSelectionPersist();
   });
@@ -516,6 +564,8 @@ export function mountApp(root: HTMLElement) {
 
       try {
         const view = await saveSpritesheet(sheet.dataUrl);
+        lastView = view;
+        hasUnsavedInput = true;
         const gifSrc = view.previewGifUrl
           ? `${view.previewGifUrl}?v=${encodeURIComponent(view.updatedAt)}`
           : null;
@@ -558,20 +608,37 @@ export function mountApp(root: HTMLElement) {
   });
 
   // ---- New / Save / Load wiring ----
-  newBtn.addEventListener("click", async () => {
+  function hasMeaningfulWork() {
     const state = store.get();
-    const hasWork =
-      state.spriteSrc !== null ||
+    return state.spriteSrc !== null ||
       state.frames.length > 0 ||
       state.spritePrompt.trim().length > 0 ||
       state.styleGuides.length > 0 ||
       state.motionPrompt.trim().length > 0;
-    if (hasWork && !window.confirm("Discard the current project and start fresh? Unsaved work will be lost.")) {
-      return;
-    }
+  }
+
+  function isDirty() {
+    if (hasUnsavedInput) return true;
+    const state = store.get();
+    if (state.currentProjectName === "latest") return hasMeaningfulWork();
+    return lastView !== null && lastView.updatedAt !== cleanUpdatedAt;
+  }
+
+  function confirmDiscard() {
+    return !isDirty() || window.confirm(
+      "Discard unsaved changes and switch projects? Unsaved work will be lost.",
+    );
+  }
+
+  newBtn.addEventListener("click", async () => {
+    if (!confirmDiscard()) return;
     try {
       const view = await newProject();
       applyView(view);
+      cleanUpdatedAt = null;
+      hasUnsavedInput = false;
+      openAccordionStep(1, false);
+      writeNavigation("push", null);
       setStatus(spriteStatus, "", "info");
       setStatus(videoStatus, "", "info");
       setStatus(framesStatus, "", "info");
@@ -599,10 +666,13 @@ export function mountApp(root: HTMLElement) {
 
     try {
       const view = await saveProject(name);
+      applyView(view);
+      cleanUpdatedAt = view.updatedAt;
+      hasUnsavedInput = false;
       store.set({
-        currentProjectName: view.name,
         savedProjects: await listProjects(),
       });
+      writeNavigation("replace", view.name);
       toast(`Saved as '${name}'`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Save failed";
@@ -641,6 +711,12 @@ export function mountApp(root: HTMLElement) {
       try {
         await deleteProject(name);
         store.set({ savedProjects: await listProjects() });
+        if (store.get().currentProjectName === name) {
+          store.set({ currentProjectName: "latest" });
+          cleanUpdatedAt = null;
+          hasUnsavedInput = true;
+          writeNavigation("replace", null);
+        }
         toast(`Deleted '${name}'`);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Delete failed";
@@ -652,9 +728,14 @@ export function mountApp(root: HTMLElement) {
     if (item) {
       const name = item.dataset.loadName!;
       loadMenu.classList.remove("is-open");
+      if (!confirmDiscard()) return;
       try {
         const view = await loadProject(name);
         applyView(view);
+        cleanUpdatedAt = view.updatedAt;
+        hasUnsavedInput = false;
+        openAccordionStep(view.sourceVideoUrl ? 3 : view.spriteUrl ? 2 : 1, false);
+        writeNavigation("push", name);
         toast(`Loaded '${name}'`);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Load failed";
@@ -677,13 +758,13 @@ export function mountApp(root: HTMLElement) {
 
   // ---- Apply a server view into local state ----
   function applyView(view: import("./lib/api").ProjectView) {
+    lastView = view;
     const patch = hydrateFromView(view);
     store.set(patch);
     promptInput.value = view.spritePrompt;
     motionInput.value = view.motionPrompt;
     setStatus(videoStatus, "");
     setStatus(framesStatus, "");
-    openAccordionStep(view.sourceVideoUrl ? 3 : view.spriteUrl ? 2 : 1);
   }
 
   let lastImageModelOptionsKey = "";
@@ -922,6 +1003,85 @@ export function mountApp(root: HTMLElement) {
     }
   });
 
+  function inferredStep(view: import("./lib/api").ProjectView) {
+    return view.sourceVideoUrl ? 3 : view.spriteUrl ? 2 : 1;
+  }
+
+  function viewIsDirty(
+    view: import("./lib/api").ProjectView,
+    projects: import("./lib/api").ProjectSummary[],
+  ) {
+    const meaningful = Boolean(
+      view.spriteUrl || view.frames.length || view.spritePrompt.trim() ||
+      view.styleGuides.length || view.motionPrompt.trim(),
+    );
+    if (view.name === "latest") return meaningful;
+    return projects.find((project) => project.name === view.name)?.updatedAt !== view.updatedAt;
+  }
+
+  function isValidProjectName(name: string) {
+    return name !== "latest" && /^[a-zA-Z0-9_-]{1,40}$/.test(name);
+  }
+
+  window.addEventListener("beforeunload", (event) => {
+    if (!isDirty()) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+
+  window.addEventListener("popstate", () => {
+    if (applyingNavigation) return;
+    void navigateFromUrl();
+  });
+
+  async function navigateFromUrl() {
+    const requested = parseNavigation(new URL(window.location.href));
+    const currentName = store.get().currentProjectName;
+    const requestedName = requested.project ?? "latest";
+    if (requestedName === currentName) {
+      openAccordionStep(requested.step ? stepNumber(requested.step) : activeStep, false);
+      writeNavigation("replace", currentName === "latest" ? null : currentName);
+      return;
+    }
+    if (!confirmDiscard()) {
+      writeNavigation("replace", currentName === "latest" ? null : currentName);
+      return;
+    }
+    applyingNavigation = true;
+    try {
+      if (requested.project && !isValidProjectName(requested.project)) {
+        throw new Error(`Invalid project link '${requested.project}'`);
+      }
+      const view = requested.project
+        ? await loadProject(requested.project)
+        : await newProject();
+      applyView(view);
+      cleanUpdatedAt = requested.project ? view.updatedAt : null;
+      hasUnsavedInput = false;
+      openAccordionStep(requested.step ? stepNumber(requested.step) : inferredStep(view), false);
+      writeNavigation("replace", requested.project);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Project navigation failed";
+      setStatus(spriteStatus, escapeHtml(message), "error");
+      toast(message);
+    } finally {
+      applyingNavigation = false;
+    }
+  }
+
+  if ("BroadcastChannel" in window) {
+    const channel = new BroadcastChannel("ai-game-studio-editor");
+    let warned = false;
+    channel.addEventListener("message", (event) => {
+      if (event.data === "hello") channel.postMessage("present");
+      if (event.data === "present" && !warned) {
+        warned = true;
+        toast("Another editor tab is open. Both tabs share the same working project.");
+      }
+    });
+    channel.postMessage("hello");
+  }
+
   // ---- Boot ----
   Promise.all([
     checkHealth(),
@@ -930,14 +1090,65 @@ export function mountApp(root: HTMLElement) {
     getImageModels(),
     getVideoModels(),
   ])
-    .then(([health, view, projects, imageModelsResp, videoModelsResp]) => {
+    .then(async ([health, currentView, projects, imageModelsResp, videoModelsResp]) => {
       store.set({
         hasApiKey: health.hasApiKey,
         savedProjects: projects,
         imageModels: [...imageModelsResp.models],
         videoModels: [...videoModelsResp.models],
       });
+      let view = currentView;
+      let projectForUrl = currentView.name === "latest" ? null : currentView.name;
+      if (initialNavigation.project && initialNavigation.project !== currentView.name) {
+        if (!isValidProjectName(initialNavigation.project)) {
+          applyView(currentView);
+          openAccordionStep(
+            initialNavigation.step ? stepNumber(initialNavigation.step) : inferredStep(currentView),
+            false,
+          );
+          setStatus(
+            spriteStatus,
+            `Invalid project link '${escapeHtml(initialNavigation.project)}'.`,
+            "error",
+          );
+          const normalized = withNavigation(new URL(window.location.href), {
+            step: stepName(activeStep),
+          });
+          window.history.replaceState({}, "", normalized);
+          return;
+        }
+        if (
+          !viewIsDirty(currentView, projects) ||
+          window.confirm("Open the linked project? Unsaved work in the current workspace will be lost.")
+        ) {
+          try {
+            view = await loadProject(initialNavigation.project);
+            projectForUrl = initialNavigation.project;
+          } catch (err) {
+            applyView(currentView);
+            openAccordionStep(
+              initialNavigation.step ? stepNumber(initialNavigation.step) : inferredStep(currentView),
+              false,
+            );
+            const message = err instanceof Error ? err.message : "Project not found";
+            setStatus(spriteStatus, escapeHtml(message), "error");
+            const normalized = withNavigation(new URL(window.location.href), {
+              step: stepName(activeStep),
+            });
+            window.history.replaceState({}, "", normalized);
+            return;
+          }
+        }
+      }
       applyView(view);
+      const saved = projects.find((project) => project.name === view.name);
+      cleanUpdatedAt = saved?.updatedAt ?? null;
+      hasUnsavedInput = false;
+      openAccordionStep(
+        initialNavigation.step ? stepNumber(initialNavigation.step) : inferredStep(view),
+        false,
+      );
+      writeNavigation("replace", projectForUrl);
     })
     .catch((err) => {
       console.error("[client] boot failed", err);

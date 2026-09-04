@@ -129,7 +129,6 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
     })),
     styleGuidesChanged: view.styleGuidesChanged,
     spritePaletteLock: view.spritePaletteLock ?? false,
-    spriteAcquisitionMode: view.spriteAcquisition === "uploaded" ? "upload" : "generate",
     spriteAcquisition: view.spriteAcquisition,
     spriteOriginalFilename: view.spriteOriginalFilename,
     backgroundSuitability: view.backgroundSuitability,
