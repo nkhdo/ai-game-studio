@@ -40,6 +40,8 @@ export interface AppState {
   motionModel: string;
   paletteLock: boolean;
   hardAlphaEdges: boolean;
+  appliedPaletteLock: boolean;
+  appliedHardAlphaEdges: boolean;
   preservedOffPalettePixels: number | null;
   removedLowAlphaPixels: number | null;
   removedChromaFringePixels: number | null;
@@ -81,6 +83,8 @@ export function createInitialState(): AppState {
     motionModel: DEFAULT_VIDEO_MODEL,
     paletteLock: false,
     hardAlphaEdges: false,
+    appliedPaletteLock: false,
+    appliedHardAlphaEdges: false,
     preservedOffPalettePixels: null,
     removedLowAlphaPixels: null,
     removedChromaFringePixels: null,
@@ -129,6 +133,8 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
     motionModel: view.motionModel || DEFAULT_VIDEO_MODEL,
     paletteLock: view.paletteLock ?? false,
     hardAlphaEdges: view.hardAlphaEdges ?? false,
+    appliedPaletteLock: view.paletteLock ?? false,
+    appliedHardAlphaEdges: view.hardAlphaEdges ?? false,
     preservedOffPalettePixels: view.preservedOffPalettePixels ?? null,
     removedLowAlphaPixels: view.removedLowAlphaPixels ?? null,
     removedChromaFringePixels: view.removedChromaFringePixels ?? null,

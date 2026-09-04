@@ -181,6 +181,13 @@ export function animateSprite(
   return postJson("/api/sprites/animate", { text, model, paletteLock, hardAlphaEdges });
 }
 
+export function reextractFrames(
+  paletteLock: boolean,
+  hardAlphaEdges: boolean,
+): Promise<ProjectView> {
+  return postJson("/api/sprites/reextract", { paletteLock, hardAlphaEdges });
+}
+
 export function getVideoModels(): Promise<VideoModelsResponse> {
   return getJson("/api/models/video");
 }

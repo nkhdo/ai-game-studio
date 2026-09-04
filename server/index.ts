@@ -411,6 +411,53 @@ app.post("/api/sprites/animate", requireKey, async (req, res) => {
   }
 });
 
+app.post("/api/sprites/reextract", async (req, res) => {
+  try {
+    const paletteLock = req.body?.paletteLock === true;
+    const hardAlphaEdges = req.body?.hardAlphaEdges === true;
+    const current = await readManifest("latest");
+    if (!current.sprite || !current.targetFrameSize) {
+      throw new Error("current Reference Sprite is missing applied target geometry");
+    }
+    if (
+      current.targetFrameSize.w !== current.targetFrameSize.h ||
+      !(TARGET_FRAME_SIZES as readonly number[]).includes(current.targetFrameSize.w)
+    ) {
+      throw new Error("current Reference Sprite has invalid applied target geometry");
+    }
+
+    const videoAbs = path.join(LATEST_DIR, PROJECT_FILES.source);
+    const spriteAbs = path.join(LATEST_DIR, current.sprite);
+    ensureInsideRoot(videoAbs);
+    ensureInsideRoot(spriteAbs);
+    if (!existsSync(videoAbs)) throw new Error("generated source video not found on disk");
+    if (!existsSync(spriteAbs)) throw new Error("Reference Sprite not found on disk");
+
+    await wipeLatestSpritesheet();
+    const spriteBuffer = await readFile(spriteAbs);
+    const framesAbs = path.join(LATEST_DIR, PROJECT_FILES.framesDir);
+    const extraction = await extractFrames(videoAbs, framesAbs, current.targetFrameSize.w, {
+      referenceSprite: paletteLock ? spriteBuffer : undefined,
+      hardAlphaEdges,
+    });
+    const frames = extraction.files.map((file) => `${PROJECT_FILES.framesDir}/${file}`);
+    const manifest = await updateLatest({
+      frames,
+      selectedFrameIndices: frames.map((_, index) => index),
+      paletteLock,
+      hardAlphaEdges,
+      preservedOffPalettePixels: extraction.preservedOffPalettePixels,
+      removedLowAlphaPixels: extraction.removedLowAlphaPixels,
+      removedChromaFringePixels: extraction.removedChromaFringePixels,
+      spritesheet: null,
+      previewGif: null,
+    });
+    res.json(toView(manifest));
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
 function handleError(err: unknown, res: Response) {
   const message =
     err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE"

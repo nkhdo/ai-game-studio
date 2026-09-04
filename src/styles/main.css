@@ -488,6 +488,11 @@ button {
   color: var(--text-subtle);
 }
 
+.btn--reextract {
+  width: 100%;
+  margin-top: 10px;
+}
+
 .geometry-hint {
   margin-top: -2px;
   color: var(--text-muted);

@@ -13,6 +13,7 @@ import {
   newProject,
   prepareSpriteUpload,
   removeStyleGuide,
+  reextractFrames,
   saveProject,
   saveSelection,
   saveSpritesheet,
@@ -79,6 +80,8 @@ export function mountApp(root: HTMLElement) {
   const hardAlphaEdgesInput = root.querySelector<HTMLInputElement>("#hard-alpha-edges")!;
   const paletteDiagnostics = root.querySelector<HTMLDivElement>("#palette-diagnostics")!;
   const generateFramesBtn = root.querySelector<HTMLButtonElement>("#btn-generate-frames")!;
+  const reextractFramesBtn = root.querySelector<HTMLButtonElement>("#btn-reextract-frames")!;
+  const reextractFramesHint = root.querySelector<HTMLDivElement>("#reextract-frames-hint")!;
   const framesGrid = root.querySelector<HTMLDivElement>("#frames-grid")!;
   const selectAllFramesBtn = root.querySelector<HTMLButtonElement>("#btn-select-all-frames")!;
   const deselectAllFramesBtn = root.querySelector<HTMLButtonElement>("#btn-deselect-all-frames")!;
@@ -397,6 +400,8 @@ export function mountApp(root: HTMLElement) {
         preservedOffPalettePixels: view.preservedOffPalettePixels,
         removedLowAlphaPixels: view.removedLowAlphaPixels,
         removedChromaFringePixels: view.removedChromaFringePixels,
+        appliedPaletteLock: view.paletteLock,
+        appliedHardAlphaEdges: view.hardAlphaEdges,
       });
       const diagnostics = [
         view.preservedOffPalettePixels
@@ -417,6 +422,24 @@ export function mountApp(root: HTMLElement) {
       toast("Frames extracted");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to generate frames";
+      store.set({ status: "error", errorMessage: message });
+      setStatus(framesStatus, message, "error");
+    }
+  });
+
+  reextractFramesBtn.addEventListener("click", async () => {
+    const state = store.get();
+    if (!state.motionVideoSrc) return;
+    store.set({ status: "extracting-frames", errorMessage: null });
+    setStatus(framesStatus, `${spinner()}Re-extracting frames from the generated video…`);
+    try {
+      const view = await reextractFrames(state.paletteLock, state.hardAlphaEdges);
+      const patch = hydrateFromView(view);
+      store.set({ ...patch, status: "done", errorMessage: null });
+      setStatus(framesStatus, `Re-extracted ${view.frames.length} frames.`, "success");
+      toast("Frames re-extracted");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to re-extract frames";
       store.set({ status: "error", errorMessage: message });
       setStatus(framesStatus, message, "error");
     }
@@ -714,6 +737,12 @@ export function mountApp(root: HTMLElement) {
     subjectFillSelect.disabled = busy;
     colorCountSelect.disabled = busy;
     generateFramesBtn.disabled = busy || !state.spriteSrc;
+    const extractionOptionsChanged =
+      state.paletteLock !== state.appliedPaletteLock ||
+      state.hardAlphaEdges !== state.appliedHardAlphaEdges;
+    reextractFramesBtn.hidden = !state.motionVideoSrc;
+    reextractFramesHint.hidden = !state.motionVideoSrc;
+    reextractFramesBtn.disabled = busy || !extractionOptionsChanged;
     generateSheetBtn.disabled = busy || state.frames.length === 0;
     selectAllFramesBtn.disabled =
       busy || state.selectedFrameIndices.size === state.frames.length;
@@ -1167,6 +1196,11 @@ function renderShell(): string {
                 <span class="style-match-row__hint">Convert extracted frames to fully opaque or fully transparent pixels</span>
               </span>
             </label>
+            <button id="btn-reextract-frames" class="btn btn--secondary btn--reextract" type="button" hidden>
+              ${frameIcon}
+              Re-generate Frames from Video
+            </button>
+            <div id="reextract-frames-hint" class="geometry-hint" hidden>Uses the existing video and does not run the video model again.</div>
             <div id="palette-diagnostics" class="geometry-hint" hidden></div>
             <div id="video-model-guidance" class="geometry-hint"></div>
             <div id="frames-status" class="status"></div>
