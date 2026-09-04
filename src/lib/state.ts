@@ -38,6 +38,8 @@ export interface AppState {
   imageModels: ImageModelOption[];
   motionPrompt: string;
   motionModel: string;
+  appliedMotionPrompt: string;
+  appliedMotionModel: string;
   paletteLock: boolean;
   hardAlphaEdges: boolean;
   appliedPaletteLock: boolean;
@@ -81,6 +83,8 @@ export function createInitialState(): AppState {
     imageModels: [],
     motionPrompt: "",
     motionModel: DEFAULT_VIDEO_MODEL,
+    appliedMotionPrompt: "",
+    appliedMotionModel: DEFAULT_VIDEO_MODEL,
     paletteLock: false,
     hardAlphaEdges: false,
     appliedPaletteLock: false,
@@ -131,6 +135,8 @@ export function hydrateFromView(view: ProjectView): Partial<AppState> {
     backgroundSuitability: view.backgroundSuitability,
     motionPrompt: view.motionPrompt,
     motionModel: view.motionModel || DEFAULT_VIDEO_MODEL,
+    appliedMotionPrompt: view.motionPrompt,
+    appliedMotionModel: view.motionModel || DEFAULT_VIDEO_MODEL,
     paletteLock: view.paletteLock ?? false,
     hardAlphaEdges: view.hardAlphaEdges ?? false,
     appliedPaletteLock: view.paletteLock ?? false,
