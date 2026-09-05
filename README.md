@@ -6,6 +6,8 @@ SpriteSheetStudio uses OpenRouter for image and video generation. It extracts tr
 
 SpriteSheetStudio began as a fork of [acatovic/ai-game-studio](https://github.com/acatovic/ai-game-studio). It has since diverged substantially, with a redesigned workflow, architecture, interface, and project model.
 
+![SpriteSheetStudio interface](screenshot.png)
+
 ## Requirements
 
 - Node.js 22.22.2+
