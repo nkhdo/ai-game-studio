@@ -24,9 +24,26 @@ const open = ref(false);
         {{ studio.state.save.phase === "saving" ? "Saving…" : studio.state.save.phase === "saved" ? "Saved" : "Not saved · Retry" }}
       </button>
       <div class="load-menu-wrap">
-        <button class="btn btn--secondary btn--sm" type="button" :aria-expanded="open" @click="open = !open">
-          <span>{{ studio.state.project?.label ?? "Loading…" }}</span>
-          <span aria-hidden="true">⌄</span>
+        <button
+          class="btn btn--secondary btn--sm project-select"
+          type="button"
+          data-project-select
+          :aria-expanded="open"
+          aria-haspopup="menu"
+          @click="open = !open"
+        >
+          <span class="project-select__label">{{ studio.state.project?.label ?? "Loading…" }}</span>
+          <svg
+            class="project-select__chevron"
+            :class="{ 'is-open': open }"
+            data-project-chevron
+            aria-hidden="true"
+            viewBox="0 0 16 16"
+            width="16"
+            height="16"
+          >
+            <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
         <div class="load-menu" :class="{ 'is-open': open }">
           <div
