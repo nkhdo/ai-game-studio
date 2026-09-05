@@ -4,6 +4,8 @@ import { useStudio } from "../studio/context";
 import BaseButton from "../ui/BaseButton.vue";
 import BaseStatus from "../ui/BaseStatus.vue";
 import UiIcon from "../ui/UiIcon.vue";
+import UiDropdown from "../ui/UiDropdown.vue";
+import FramePreview from "../ui/FramePreview.vue";
 const studio = useStudio();
 const operation = computed(() => studio.state.operations.animation);
 const playing = ref(false);
@@ -78,19 +80,21 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
               <button class="btn btn--link btn--sm" type="button" @click="studio.actions.selectNone">Deselect All</button>
             </div>
           </div>
-          <div class="frames-grid">
-            <button
-              v-for="(frame, index) in studio.state.project?.frames"
-              :key="frame"
-              class="frame-tile"
-              :class="{ 'is-selected': studio.state.animationDraft.frameSequence.includes(index) }"
-              type="button"
-              :aria-pressed="studio.state.animationDraft.frameSequence.includes(index)"
-              @click="studio.actions.toggleFrame(index)"
-            >
-              <div class="frame-tile__num">{{ index + 1 }}</div>
-              <img :src="frame" :alt="`Frame ${index + 1}`">
-            </button>
+          <FramePreview v-slot="{ showFrame, hidePreview }" class="frames-grid"
+            :frames="studio.state.project?.frames ?? []" :disabled="previewExpanded">
+              <button
+                v-for="(frame, index) in studio.state.project?.frames" :key="frame"
+                class="frame-tile"
+                :class="{ 'is-selected': studio.state.animationDraft.frameSequence.includes(index) }"
+                type="button"
+                :aria-pressed="studio.state.animationDraft.frameSequence.includes(index)"
+                @click="studio.actions.toggleFrame(index)"
+                @mouseenter="showFrame(index)" @mouseleave="hidePreview"
+                @focus="showFrame(index)" @blur="hidePreview"
+              >
+                <div class="frame-tile__num">{{ index + 1 }}</div>
+                <img :src="frame" :alt="`Frame ${index + 1}`">
+              </button>
             <button
               v-for="index in studio.state.project?.frames.length ? 0 : 8"
               :key="`empty-${index}`"
@@ -100,7 +104,7 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
             >
               <div class="frame-tile__num">{{ index }}</div>
             </button>
-          </div>
+          </FramePreview>
         </div>
         <div class="animation-editor">
           <div class="quick-preview__header">
@@ -116,7 +120,15 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
               </label>
               <div class="animation-save-split">
                 <BaseButton variant="primary" :busy="operation.phase === 'running'" :disabled="!frames.length" @click="save">Save</BaseButton>
-                <BaseButton :disabled="!frames.length || operation.phase === 'running'" @click="studio.actions.saveAnimation(false)">Save as</BaseButton>
+                <UiDropdown trigger-class="btn btn--primary animation-save-split__toggle" placement="bottom-end"
+                  aria-label="More save actions" :disabled="!frames.length || operation.phase === 'running'">
+                  <template #trigger><UiIcon name="chevron-down" /></template>
+                  <template #default="{ close }">
+                    <button class="ui-dropdown__item" role="menuitem" type="button"
+                      :disabled="!frames.length || operation.phase === 'running'"
+                      @click="close(); studio.actions.saveAnimation(false)">Save as</button>
+                  </template>
+                </UiDropdown>
               </div>
             </div>
           </div>

@@ -1,3 +1,4 @@
+@import "floating-vue/dist/style.css";
 @import "./tokens.css";
 @import "./base.css";
 @import "./shell.css";
@@ -8,3 +9,4 @@
 @import "./movement.css";
 @import "./animation.css";
 @import "./feedback.css";
+@import "./popovers.css";

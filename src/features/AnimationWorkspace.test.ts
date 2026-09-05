@@ -1,9 +1,10 @@
-import { mount } from "@vue/test-utils";
+import { DOMWrapper, enableAutoUnmount, mount } from "@vue/test-utils";
 import { reactive } from "vue";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { studioKey, type StudioContext } from "../studio/context";
 import { createStudioState } from "../studio/state";
 import AnimationWorkspace from "./AnimationWorkspace.vue";
+enableAutoUnmount(afterEach);
 
 function context(): StudioContext {
   const state = createStudioState();
@@ -21,6 +22,7 @@ function context(): StudioContext {
       selectNone: vi.fn(),
       activateAnimation: vi.fn(),
       saveAnimation: vi.fn(),
+      toggleFrame: vi.fn(),
     },
   }) as unknown as StudioContext;
 }
@@ -78,8 +80,13 @@ describe("AnimationWorkspace", () => {
 
     await wrapper.get(".animation-save-split .btn--primary").trigger("click");
     expect(studio.actions.saveAnimation).toHaveBeenCalledWith(true);
-    await wrapper.get(".animation-save-split .btn--secondary").trigger("click");
+    const toggle = wrapper.get('[aria-label="More save actions"]');
+    await toggle.trigger("click");
+    expect(studio.actions.saveAnimation).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(document.querySelector('.ui-dropdown__item')).not.toBeNull());
+    await new DOMWrapper(document.querySelector('.ui-dropdown__item')!).trigger("click");
     expect(studio.actions.saveAnimation).toHaveBeenLastCalledWith(false);
+    expect(toggle.attributes("aria-expanded")).toBe("false");
   });
 
   it("places compact Animation settings and save actions in the preview header", () => {
@@ -90,9 +97,122 @@ describe("AnimationWorkspace", () => {
     const actions = wrapper.get(".quick-preview__header-actions");
     expect(actions.get('input[placeholder="e.g., run"]').element.tagName).toBe("INPUT");
     expect(actions.get('input[type="number"]').attributes("max")).toBe("60");
-    expect(actions.findAll(".animation-save-split .btn").map((button) => button.text())).toEqual(["Save", "Save as"]);
+    expect(actions.findAll(".animation-save-split .btn").map((button) => button.text())).toEqual(["Save", ""]);
+    expect(actions.get('[aria-label="More save actions"] svg').attributes("data-icon")).toBe("chevron-down");
     expect(wrapper.find(".quick-preview__overlay--settings").exists()).toBe(false);
     expect(wrapper.find(".animation-editor__header").exists()).toBe(false);
+  });
+
+  it("disables both save controls without frames and while saving", async () => {
+    const studio = context();
+    const wrapper = mount(AnimationWorkspace, {
+      global: { provide: { [studioKey as symbol]: studio } },
+    });
+    const buttons = wrapper.findAll<HTMLButtonElement>(".animation-save-split button");
+    expect(buttons.every((button) => button.element.disabled)).toBe(true);
+    studio.frameUrls = ["one.png"];
+    await wrapper.vm.$nextTick();
+    await buttons[1]!.trigger("click");
+    expect(buttons[1]!.attributes("aria-expanded")).toBe("true");
+    studio.state.operations.animation.phase = "running";
+    await wrapper.vm.$nextTick();
+    expect(buttons.every((button) => button.element.disabled)).toBe(true);
+    expect(buttons[1]!.attributes("aria-expanded")).toBe("false");
+  });
+
+  it.each(["mouseenter", "focus"])("previews the original frame on %s without selecting it", async (event) => {
+    const studio = context();
+    studio.state.project!.frames = ["/projects/one/frames/0.png"];
+    const wrapper = mount(AnimationWorkspace, {
+      attachTo: document.body,
+      global: { provide: { [studioKey as symbol]: studio } },
+    });
+    await wrapper.vm.$nextTick();
+    const gridBounds = vi.spyOn(wrapper.get(".frames-grid").element, "getBoundingClientRect");
+    const tile = wrapper.get(".frame-tile");
+    await tile.trigger(event);
+    await vi.waitFor(() => expect(document.querySelector('.v-popper__popper--shown .frame-preview img')?.getAttribute("src"))
+      .toBe("/projects/one/frames/0.png"));
+    expect(gridBounds).toHaveBeenCalled();
+    expect(studio.actions.toggleFrame).not.toHaveBeenCalled();
+    expect(wrapper.find(".frame-preview").exists()).toBe(false);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await vi.waitFor(() => expect(document.querySelector('.v-popper__popper--shown .frame-preview')).toBeNull());
+    await tile.trigger("click");
+    expect(studio.actions.toggleFrame).toHaveBeenCalledWith(0);
+  });
+
+  it("keeps one preview open across fast frame changes, then hides after the grace period", async () => {
+    vi.useFakeTimers();
+    const studio = context();
+    studio.state.project!.frames = ["/first.png", "/second.png"];
+    const wrapper = mount(AnimationWorkspace, {
+      attachTo: document.body,
+      global: { provide: { [studioKey as symbol]: studio } },
+    });
+    try {
+      const tiles = wrapper.findAll(".frame-tile");
+      const shownImage = () => document.querySelector('.v-popper__popper--shown .frame-preview img');
+      await tiles[0]!.trigger("mouseenter");
+      await vi.advanceTimersByTimeAsync(499);
+      expect(shownImage()).toBeNull();
+      await vi.advanceTimersByTimeAsync(101);
+      const image = shownImage();
+      expect(image?.getAttribute("src")).toBe("/first.png");
+      expect(document.querySelector(".frame-preview__label")?.textContent).toBe("Frame 1");
+
+      await tiles[0]!.trigger("mousedown");
+      await tiles[0]!.trigger("focus");
+      await tiles[0]!.trigger("click");
+      await vi.advanceTimersByTimeAsync(100);
+      expect(studio.actions.toggleFrame).toHaveBeenCalledWith(0);
+      expect(shownImage()).toBe(image);
+
+      await tiles[0]!.trigger("mouseleave");
+      await vi.advanceTimersByTimeAsync(50);
+      expect(shownImage()).toBe(image);
+      await tiles[1]!.trigger("mouseenter");
+      expect(shownImage()).toBe(image);
+      expect(image?.getAttribute("src")).toBe("/second.png");
+      expect(document.querySelector(".frame-preview__label")?.textContent).toBe("Frame 2");
+      await vi.advanceTimersByTimeAsync(600);
+      expect(shownImage()).toBe(image);
+      expect(document.querySelectorAll(".frame-preview")).toHaveLength(1);
+
+      await tiles[1]!.trigger("mouseleave");
+      await vi.advanceTimersByTimeAsync(99);
+      expect(shownImage()).toBe(image);
+      await vi.advanceTimersByTimeAsync(101);
+      expect(shownImage()).toBeNull();
+    } finally {
+      wrapper.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancels a pending preview when leaving a frame or collapsing the selector", async () => {
+    vi.useFakeTimers();
+    const studio = context();
+    studio.state.project!.frames = ["/first.png"];
+    const wrapper = mount(AnimationWorkspace, {
+      global: { provide: { [studioKey as symbol]: studio } },
+    });
+    try {
+      const tile = wrapper.get(".frame-tile");
+      await tile.trigger("mouseenter");
+      await vi.advanceTimersByTimeAsync(200);
+      await tile.trigger("mouseleave");
+      await vi.advanceTimersByTimeAsync(600);
+      expect(document.querySelector('.v-popper__popper--shown .frame-preview')).toBeNull();
+
+      await tile.trigger("mouseenter");
+      await wrapper.get('[aria-label="Expand preview"]').trigger("click");
+      await vi.advanceTimersByTimeAsync(600);
+      expect(document.querySelector('.v-popper__popper--shown .frame-preview')).toBeNull();
+    } finally {
+      wrapper.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it("expands the preview by hiding and restoring the frame selector", async () => {

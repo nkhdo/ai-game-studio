@@ -1,10 +1,11 @@
-import { mount } from "@vue/test-utils";
+import { DOMWrapper, enableAutoUnmount, mount } from "@vue/test-utils";
 import { reactive } from "vue";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { studioKey, type StudioContext } from "../studio/context";
 import { createStudioState } from "../studio/state";
 import ProjectHeader from "./ProjectHeader.vue";
 import { setTheme, THEME_STORAGE_KEY } from "../theme";
+enableAutoUnmount(afterEach);
 
 function context(): StudioContext {
   const state = createStudioState();
@@ -87,10 +88,16 @@ describe("ProjectHeader", () => {
     });
     const trigger = wrapper.get<HTMLButtonElement>("[data-project-select]");
     await trigger.trigger("keydown", { key: "ArrowDown" });
-    expect(wrapper.get(".load-menu").classes()).toContain("is-open");
-    expect(document.activeElement?.getAttribute("role")).toBe("menuitem");
-    await wrapper.get(".load-menu").trigger("keydown", { key: "Escape" });
-    expect(wrapper.get(".load-menu").classes()).not.toContain("is-open");
+    expect(trigger.attributes("aria-expanded")).toBe("true");
+    await vi.waitFor(() => expect(document.activeElement?.getAttribute("role")).toBe("menuitem"));
+    const menu = new DOMWrapper(document.querySelector(".load-menu")!);
+    expect(wrapper.element.contains(menu.element)).toBe(false);
+    await menu.trigger("keydown", { key: "End" });
+    expect(document.activeElement?.textContent).toContain("Create new");
+    await menu.trigger("keydown", { key: "ArrowDown" });
+    expect(document.activeElement?.textContent).toContain("Ladybug boss");
+    await menu.trigger("keydown", { key: "Escape" });
+    expect(trigger.attributes("aria-expanded")).toBe("false");
     expect(document.activeElement).toBe(trigger.element);
     wrapper.unmount();
   });
@@ -103,7 +110,7 @@ describe("ProjectHeader", () => {
     await wrapper.get("[data-project-select]").trigger("click");
     document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
     await wrapper.vm.$nextTick();
-    expect(wrapper.get(".load-menu").classes()).not.toContain("is-open");
+    expect(wrapper.get("[data-project-select]").attributes("aria-expanded")).toBe("false");
     wrapper.unmount();
   });
 });

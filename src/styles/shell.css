@@ -83,10 +83,6 @@
 }
 
 /* ---------- Load menu (dropdown) ---------- */
-.load-menu-wrap {
-  position: relative;
-}
-
 .project-select {
   min-width: 0;
 }
@@ -109,24 +105,8 @@
   transform: rotate(180deg);
 }
 
-.load-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 240px;
-  max-height: 320px;
-  overflow-y: auto;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-md);
-  padding: 4px;
-  z-index: 20;
-  display: none;
-}
-
-.load-menu.is-open {
-  display: block;
+.ui-dropdown__menu.load-menu {
+  min-width: min(240px, calc(100vw - 24px));
 }
 
 .load-menu__empty {
