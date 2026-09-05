@@ -1,3 +1,5 @@
+<p align="center"><img src="public/logo.png" width="96" alt="SpriteSheetStudio logo" /></p>
+
 # SpriteSheetStudio
 
 A local web app for creating 2D game Animations from generated or uploaded Reference Sprites.

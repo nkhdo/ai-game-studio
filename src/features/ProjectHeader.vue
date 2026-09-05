@@ -10,9 +10,7 @@ const studio = useStudio();
 <template>
   <header class="app-header">
     <div class="app-header__brand">
-      <span class="app-header__logo" aria-hidden="true">
-        <span v-for="index in 9" :key="index" />
-      </span>
+      <img class="app-header__logo" src="/logo.png" alt="" />
       <span class="app-header__title">SpriteSheetStudio</span>
       <UiDropdown trigger-class="btn btn--secondary btn--sm project-select" menu-class="load-menu" data-project-select>
         <template #trigger="{ open }">

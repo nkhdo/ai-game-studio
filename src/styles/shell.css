@@ -24,17 +24,10 @@
 }
 
 .app-header__logo {
-  display: grid;
-  grid-template-columns: repeat(3, 4px);
-  grid-template-rows: repeat(3, 4px);
-  gap: 2px;
-}
-
-.app-header__logo span {
-  width: 4px;
-  height: 4px;
-  background: var(--accent-dark);
-  border-radius: 1px;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  image-rendering: pixelated;
 }
 
 .app-header__title {
