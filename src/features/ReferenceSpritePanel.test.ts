@@ -71,4 +71,21 @@ describe("ReferenceSpritePanel", () => {
     expect(wrapper.findAll(".style-guide-thumb")).toHaveLength(1);
     expect(wrapper.get(".style-guide-add input[type='file']").attributes("multiple")).toBeDefined();
   });
+
+  it("orders generated Reference Sprite controls by workflow", () => {
+    const state = createStudioState();
+    reconcileProject(state, project());
+    const context = reactive({
+      state,
+      imageModels: [{ id: "image", label: "Image", maxStyleGuideImages: 3, sizeStrategy: "target-size" }],
+      videoModels: [], projects: [], activePanel: "reference", hasApiKey: true,
+      actions: { setPanel: vi.fn(), addStyleGuides: vi.fn(), removeStyleGuide: vi.fn() },
+    }) as unknown as StudioContext;
+    const wrapper = mount(ReferenceSpritePanel, {
+      global: { provide: { [studioKey as symbol]: context } },
+    });
+    expect(wrapper.findAll("[data-form-row]").map((row) => row.attributes("data-form-row"))).toEqual([
+      "prompt", "model", "geometry", "style-guides", "palette-lock", "generate",
+    ]);
+  });
 });
