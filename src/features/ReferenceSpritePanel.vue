@@ -16,7 +16,7 @@ const busy = computed(() => operation.value.phase === "running");
 <template>
   <section class="card accordion-item" :class="{ 'is-open': studio.activePanel === 'reference' }">
     <button class="accordion-trigger" type="button" :aria-expanded="studio.activePanel === 'reference'" @click="studio.actions.setPanel('reference')">
-      <span>1. Choose Reference Sprite</span><span class="accordion-trigger__icon" aria-hidden="true" />
+      <span>Choose Reference Sprite</span><span class="accordion-trigger__icon" aria-hidden="true" />
     </button>
     <div class="panel-body">
       <div class="mode-switch" role="group" aria-label="Reference Sprite Acquisition method">

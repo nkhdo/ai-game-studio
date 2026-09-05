@@ -9,7 +9,7 @@ const model = computed(() => studio.videoModels.find(({ id }) => id === studio.s
 </script>
 <template>
   <section class="card movement-step accordion-item" :class="{ 'is-open': studio.activePanel === 'movement' }">
-    <button class="accordion-trigger" type="button" :aria-expanded="studio.activePanel === 'movement'" @click="studio.actions.setPanel('movement')"><span>2. Generate Video</span><span class="accordion-trigger__icon" /></button>
+    <button class="accordion-trigger" type="button" :aria-expanded="studio.activePanel === 'movement'" @click="studio.actions.setPanel('movement')"><span>Generate Video</span><span class="accordion-trigger__icon" /></button>
     <div class="panel-body">
       <div class="field"><label class="field__label" for="motion-prompt">Movement Prompt</label><textarea id="motion-prompt" v-model="studio.state.draft.motionPrompt" class="textarea" rows="3" placeholder="e.g., walking left, jump, attack right…" /></div>
       <div class="motion-controls">
