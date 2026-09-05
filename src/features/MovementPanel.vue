@@ -16,7 +16,7 @@ const model = computed(() => studio.videoModels.find(({ id }) => id === studio.s
       <div class="geometry-hint">{{ model?.inputMode === "first-frame" ? "Exact first frame" : "Reference guidance" }}<template v-if="model?.constraintNote"> · {{ model.constraintNote }}</template></div>
       <BaseButton variant="primary" block :busy="operation.phase === 'running'" :disabled="!studio.hasApiKey || !studio.state.project?.spriteUrl" @click="studio.actions.generateVideo">Generate Movement Video</BaseButton>
       <BaseStatus :message="operation.message" :kind="operation.phase === 'error' ? 'error' : operation.phase === 'success' ? 'success' : 'info'" :busy="operation.phase === 'running'" />
-      <div class="motion-video-section"><div class="motion-video-section__label">Generated Video</div><div class="motion-video-preview"><video v-if="studio.state.project?.sourceVideoUrl" :src="studio.state.project.sourceVideoUrl" aria-label="Generated movement video" controls loop playsinline /><span v-else class="motion-video-preview__placeholder">Generate a video to preview it here</span></div></div>
+      <div class="motion-video-section"><div class="motion-video-section__label">Generated Video</div><div class="motion-video-preview"><video v-if="studio.state.project?.sourceVideoUrl" :src="studio.state.project.sourceVideoUrl" aria-label="Generated movement video" controls muted loop playsinline /><span v-else class="motion-video-preview__placeholder">Generate a video to preview it here</span></div></div>
     </div>
   </section>
 </template>
