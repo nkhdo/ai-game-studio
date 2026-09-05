@@ -35,12 +35,11 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
 </script>
 <template>
   <section class="card">
-    <h2 class="card__title">Animations</h2>
     <div class="panel-body">
       <div class="animation-workspace">
       <aside class="animations-library" aria-label="Saved Animations">
         <div class="animations-library__header">
-          <div class="gif-section__label">Saved Animations</div>
+          <h2 class="card__title">Animations</h2>
           <button class="btn btn--link btn--sm" type="button" @click="studio.actions.activateAnimation(null)">New Draft</button>
         </div>
         <div class="animations-list">
@@ -74,7 +73,7 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
       <div class="animation-edit-pane" :class="{ 'is-preview-expanded': previewExpanded }">
         <div class="frames-section">
           <div class="frames-section__header">
-            <div class="frames-section__label">Select frames for this Animation</div>
+            <div class="frames-section__label">{{studio.state.project?.frames?.length ?? 0}} Frames</div>
             <div class="frames-section__actions">
               <button class="btn btn--link btn--sm" type="button" @click="studio.actions.selectAll">Select All</button>
               <button class="btn btn--link btn--sm" type="button" @click="studio.actions.selectNone">Deselect All</button>
