@@ -53,8 +53,6 @@ const open = ref(false);
           <button class="load-menu__create" type="button" @click="studio.actions.createProject(); open = false">＋ Create new</button>
         </div>
       </div>
-    </div>
-    <div class="app-header__actions">
       <button
         v-if="studio.state.save.phase !== 'idle'"
         class="save-indicator"

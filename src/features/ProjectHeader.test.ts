@@ -45,7 +45,22 @@ describe("ProjectHeader", () => {
       wrapper.get(".app-header__brand").find("[data-project-select]").exists(),
     ).toBe(true);
     expect(
-      wrapper.get(".app-header__actions").find("[data-project-select]").exists(),
+      wrapper.find(".app-header__actions").exists(),
     ).toBe(false);
+  });
+
+  it("places save feedback beside the Project selector", () => {
+    const studio = context();
+    studio.state.save.phase = "saving";
+    const wrapper = mount(ProjectHeader, {
+      global: { provide: { [studioKey as symbol]: studio } },
+    });
+    const brand = wrapper.get(".app-header__brand");
+    expect(brand.get(".save-indicator").text()).toBe("Saving…");
+    expect(
+      brand.get("[data-project-select]").element.compareDocumentPosition(
+        brand.get(".save-indicator").element,
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });
