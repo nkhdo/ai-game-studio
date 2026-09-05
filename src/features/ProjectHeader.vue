@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useStudio } from "../studio/context";
+import UiIcon from "../ui/UiIcon.vue";
 
 const studio = useStudio();
 const open = ref(false);
@@ -23,17 +24,12 @@ const open = ref(false);
           @click="open = !open"
         >
           <span class="project-select__label">{{ studio.state.project?.label ?? "Loading…" }}</span>
-          <svg
+          <UiIcon
+            name="chevron-down"
             class="project-select__chevron"
             :class="{ 'is-open': open }"
             data-project-chevron
-            aria-hidden="true"
-            viewBox="0 0 16 16"
-            width="16"
-            height="16"
-          >
-            <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
+          />
         </button>
         <div class="load-menu" :class="{ 'is-open': open }">
           <div
@@ -46,11 +42,11 @@ const open = ref(false);
               <span class="load-menu__name">{{ project.label }}</span>
               <span class="load-menu__time">{{ new Date(project.createdAt).toLocaleString() }}</span>
             </button>
-            <button class="load-menu__rename" type="button" :aria-label="`Rename ${project.label}`" @click="studio.actions.renameProject(project.id)">✎</button>
-            <button class="load-menu__delete" type="button" :aria-label="`Delete ${project.label}`" @click="studio.actions.deleteProject(project.id)">×</button>
+            <button class="load-menu__rename" type="button" :aria-label="`Rename ${project.label}`" @click="studio.actions.renameProject(project.id)"><UiIcon name="edit" /></button>
+            <button class="load-menu__delete" type="button" :aria-label="`Delete ${project.label}`" @click="studio.actions.deleteProject(project.id)"><UiIcon name="trash" /></button>
           </div>
           <div class="load-menu__separator" />
-          <button class="load-menu__create" type="button" @click="studio.actions.createProject(); open = false">＋ Create new</button>
+          <button class="load-menu__create" type="button" @click="studio.actions.createProject(); open = false"><UiIcon name="plus" /> Create new</button>
         </div>
       </div>
       <button
