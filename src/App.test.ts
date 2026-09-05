@@ -27,9 +27,8 @@ vi.mock("./lib/api", () => ({
   getVideoModels: vi.fn().mockResolvedValue({ models: [{ id: "video", label: "Video", defaultDuration: 2, inputMode: "first-frame", minInputWidth: null, minInputHeight: null, inputResizeKernel: "nearest", constraintNote: null }], default: "video" }),
   getProject: vi.fn().mockResolvedValue(view),
   createProject: vi.fn().mockResolvedValue(view),
-  setActiveProject: vi.fn(),
-  saveProjectDraftFor: vi.fn().mockResolvedValue(view),
-  saveSelectionFor: vi.fn().mockResolvedValue(view),
+  saveProjectDraft: vi.fn().mockResolvedValue(view),
+  saveSelection: vi.fn().mockResolvedValue(view),
 }));
 
 describe("App", () => {

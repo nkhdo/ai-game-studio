@@ -1,11 +1,6 @@
 import { computed, reactive, watch } from "vue";
 import type { RouteLocationNormalizedLoaded, Router } from "vue-router";
-import {
-  saveProjectDraftFor,
-  saveSelectionFor,
-  setActiveProject,
-  type ProjectView,
-} from "../lib/api";
+import type { ProjectRequestContext, ProjectView } from "../lib/api";
 import { composeSpritesheet } from "../lib/spritesheet";
 import { routeAnimation, routePanel, type LeftPanel } from "../router";
 import type { StudioContext } from "./context";
@@ -103,9 +98,8 @@ export function createStudioController(
   const sync = new DraftSynchronizer(
     dependencies.clock,
     async (projectId, revision, patch, base) => {
-      const view = await saveProjectDraftFor(
-        projectId,
-        revision,
+      const view = await dependencies.server.saveProjectDraft(
+        { id: projectId, revision },
         toServerDraft(patch),
         toServerDraft(base),
       );
@@ -131,7 +125,6 @@ export function createStudioController(
   function apply(view: ProjectView, preserveDraft = false) {
     suppressDraftSave = true;
     const hydrated = cacheBustProject(view);
-    setActiveProject(hydrated.id, hydrated.revision);
     reconcileProject(state, hydrated, { preserveDraft });
     if (!preserveDraft) sync.attach(hydrated.id, hydrated.revision, state.draft);
     suppressDraftSave = false;
@@ -177,8 +170,12 @@ export function createStudioController(
         state.project?.frames[index] ? [state.project.frames[index]] : []);
   }
 
+  function requestContext(project: ProjectView): ProjectRequestContext {
+    return { id: project.id, revision: project.revision };
+  }
+
   function persistSelection(project: ProjectView, indices: number[]) {
-    return saveSelectionFor(project.id, project.revision, indices).then((view) => {
+    return dependencies.server.saveSelection(requestContext(project), indices).then((view) => {
       if (state.project?.id !== project.id) return;
       state.project.revision = view.revision;
       sync.advanceRevision(project.id, view.revision);
@@ -199,8 +196,9 @@ export function createStudioController(
         state.project?.animations.length &&
         !await dependencies.confirmation.confirm("Replace the Reference Sprite? All saved Animations will be removed.")
       ) return;
-      await run("reference", "Generating Reference Sprite…", async () => {
+      await run("reference", "Generating Reference Sprite…", async (project) => {
         const result = await dependencies.server.generateSprite(
+          requestContext(project),
           prompt,
           state.draft.spriteModel,
           {
@@ -224,7 +222,8 @@ export function createStudioController(
       if (!project) return;
       const id = beginOperation(state, "reference", project.id, "Preparing Reference Sprite…");
       try {
-        const prepared = await dependencies.server.prepareSpriteUpload(file, {
+        const context = requestContext(project);
+        const prepared = await dependencies.server.prepareSpriteUpload(context, file, {
           frameSize: state.draft.frameSize,
           subjectFillPct: state.draft.subjectFillPct,
           colorCount: state.draft.colorCount,
@@ -233,11 +232,11 @@ export function createStudioController(
           prepared.requiresConfirmation &&
           !await dependencies.confirmation.confirm("Replace the Reference Sprite and remove its Downstream Artifacts?")
         ) {
-          await dependencies.server.discardSpriteUpload();
+          await dependencies.server.discardSpriteUpload(context);
           finishOperation(state, "reference", id, project.id, "success", "Upload cancelled.");
           return;
         }
-        const view = await dependencies.server.commitSpriteUpload(prepared.uploadId);
+        const view = await dependencies.server.commitSpriteUpload(context, prepared.uploadId);
         if (finishOperation(state, "reference", id, project.id, "success", "Reference Sprite uploaded.")) {
           apply(view);
           notify("Reference Sprite uploaded");
@@ -255,13 +254,15 @@ export function createStudioController(
       }
       await run("styleGuide", "Adding Style Guide Images…", async (project) => {
         let view = project;
-        for (const file of files) view = await dependencies.server.uploadStyleGuide(file);
+        for (const file of files) {
+          view = await dependencies.server.uploadStyleGuide(requestContext(view), file);
+        }
         return view;
       }, "Style Guide Images updated.", { preserveDraft: true });
     },
     async removeStyleGuide(id) {
       await run("styleGuide", "Removing Style Guide Image…",
-        () => dependencies.server.removeStyleGuide(id), "Style Guide Image removed.",
+        (project) => dependencies.server.removeStyleGuide(requestContext(project), id), "Style Guide Image removed.",
         { preserveDraft: true });
     },
     async generateVideo() {
@@ -274,7 +275,11 @@ export function createStudioController(
         !await dependencies.confirmation.confirm("Generate a new video and replace the current Movement Frames?")
       ) return;
       await run("video", "Generating movement video…",
-        () => dependencies.server.generateMotionVideo(state.draft.motionPrompt, state.draft.motionModel),
+        (project) => dependencies.server.generateMotionVideo(
+          requestContext(project),
+          state.draft.motionPrompt,
+          state.draft.motionModel,
+        ),
         "Movement video ready.");
     },
     async generateFrames() {
@@ -283,7 +288,11 @@ export function createStudioController(
         return;
       }
       await run("frames", "Generating Movement Frames…",
-        () => dependencies.server.generateMovementFrames(state.draft.paletteLock, state.draft.hardAlphaEdges),
+        (project) => dependencies.server.generateMovementFrames(
+          requestContext(project),
+          state.draft.paletteLock,
+          state.draft.hardAlphaEdges,
+        ),
         "Movement Frames ready.");
       if (state.operations.frames.phase === "success") {
         state.animationDraft.frameSequence = state.project?.frames.map((_, index) => index) ?? [];
@@ -336,9 +345,13 @@ export function createStudioController(
         sourceAnimationId: state.animationDraft.activeAnimationId ?? undefined,
       };
       await run("animation", update ? "Updating Animation…" : "Saving Animation…",
-        () => update && state.animationDraft.activeAnimationId
-          ? dependencies.server.updateAnimation(state.animationDraft.activeAnimationId, input)
-          : dependencies.server.createAnimation(input),
+        (project) => update && state.animationDraft.activeAnimationId
+          ? dependencies.server.updateAnimation(
+            requestContext(project),
+            state.animationDraft.activeAnimationId,
+            input,
+          )
+          : dependencies.server.createAnimation(requestContext(project), input),
         update ? "Animation updated." : "Animation saved.");
       const saved = state.project?.animations.find((animation) => animation.name === name);
       if (saved) await context.actions.activateAnimation(saved.id);
@@ -346,7 +359,7 @@ export function createStudioController(
     async deleteAnimation(id) {
       if (!await dependencies.confirmation.confirm("Delete this Animation?")) return;
       await run("animation", "Deleting Animation…",
-        () => dependencies.server.deleteAnimation(id), "Animation deleted.");
+        (project) => dependencies.server.deleteAnimation(requestContext(project), id), "Animation deleted.");
       if (state.animationDraft.activeAnimationId === id) newAnimationDraft(state);
     },
     exportAnimation(id) {
