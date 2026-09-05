@@ -118,11 +118,26 @@ button {
   position: relative;
 }
 
-#project-select-label {
+.project-select {
+  min-width: 0;
+}
+
+.project-select__label {
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.project-select__chevron {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  transition: transform 140ms ease;
+}
+
+.project-select__chevron.is-open {
+  transform: rotate(180deg);
 }
 
 .load-menu {
