@@ -119,6 +119,14 @@ function captureRevision(value: unknown): void {
   if (!value || typeof value !== "object") return;
   const candidate = "view" in value ? (value as { view?: unknown }).view : value;
   if (candidate && typeof candidate === "object" && "revision" in candidate) {
+    const candidateId = "id" in candidate
+      ? (candidate as { id?: unknown }).id
+      : undefined;
+    if (
+      typeof candidateId === "string" &&
+      activeProjectId &&
+      candidateId !== activeProjectId
+    ) return;
     const revision = Number((candidate as { revision?: unknown }).revision);
     if (Number.isInteger(revision)) activeProjectRevision = revision;
   }
