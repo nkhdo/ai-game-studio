@@ -47,6 +47,7 @@ import {
   renameProject,
   pruneUnreferencedStyleGuides,
   toView,
+  toMutation,
   updateLatest,
   wipeLatestAnimations,
   wipeLatestFramesAndSheet,
@@ -76,6 +77,26 @@ const imageUpload = multer({
   limits: { files: 1, fileSize: 10 * 1024 * 1024 },
 });
 const projectWriteTails = new Map<string, Promise<void>>();
+
+const STYLE_GUIDE_FIELDS = ["styleGuides", "styleGuidesChanged"] as const;
+const REFERENCE_FIELDS = [
+  "spritePrompt", "spriteModel", "styleGuides", "styleGuidesChanged",
+  "spritePaletteLock", "spriteAcquisition", "spriteOriginalFilename",
+  "backgroundSuitability", "spriteUrl", "spriteDimensions", "targetFrameSize",
+  "subjectFillPct", "colorCount", "subjectFillMeasured", "sourceVideoUrl",
+  "motionPrompt", "motionModel", "frames", "framesUpdatedAt", "animations",
+  "preservedOffPalettePixels", "removedLowAlphaPixels", "removedChromaFringePixels",
+] as const;
+const VIDEO_FIELDS = [
+  "motionPrompt", "motionModel", "sourceVideoUrl", "frames", "framesUpdatedAt",
+  "preservedOffPalettePixels", "removedLowAlphaPixels", "removedChromaFringePixels",
+] as const;
+const FRAME_FIELDS = [
+  "frames", "framesUpdatedAt", "paletteLock", "hardAlphaEdges",
+  "preservedOffPalettePixels", "removedLowAlphaPixels", "removedChromaFringePixels",
+] as const;
+const ANIMATION_FIELDS = ["animations"] as const;
+const PROJECT_LABEL_FIELDS = ["label"] as const;
 
 app.use(async (req, res, next) => {
   const raw = req.header("X-Project-ID");
@@ -185,7 +206,7 @@ app.post("/api/projects/rename", async (req, res) => {
   try {
     const id = asString(req.body?.id, "project id", 40);
     const label = asString(req.body?.label, "project label", 80);
-    res.json(await renameProject(id, label));
+    res.json(toMutation(await renameProject(id, label), PROJECT_LABEL_FIELDS));
   } catch (err) {
     handleError(err, res);
   }
@@ -199,7 +220,8 @@ app.post("/api/projects/draft", async (req, res) => {
     const allowed = ["spritePrompt", "spriteModel", "spritePaletteLock", "motionPrompt", "motionModel", "paletteLock", "hardAlphaEdges", "spriteAcquisitionMode", "draftFrameSize", "draftSubjectFillPct", "draftColorCount", "animationDraftName", "animationDraftFps"] as const;
     const patch = Object.fromEntries(allowed.filter((key) => key in (req.body?.patch ?? {})).map((key) => [key, req.body.patch[key]]));
     const base = req.body?.base && typeof req.body.base === "object" ? req.body.base : {};
-    res.json(await patchProjectDraft(id, revision, patch, base));
+    const view = await patchProjectDraft(id, revision, patch, base);
+    res.json(toMutation(view, []));
   } catch (err) {
     handleError(err, res);
   }
@@ -226,7 +248,7 @@ function animationInput(body: Record<string, unknown>) {
 
 app.post("/api/projects/animations", async (req, res) => {
   try {
-    res.json(await createAnimation(animationInput(req.body ?? {})));
+    res.json(toMutation(await createAnimation(animationInput(req.body ?? {})), ANIMATION_FIELDS));
   } catch (err) {
     handleError(err, res);
   }
@@ -235,7 +257,7 @@ app.post("/api/projects/animations", async (req, res) => {
 app.post("/api/projects/animations/update", async (req, res) => {
   try {
     const id = asString(req.body?.id, "animation id", 80);
-    res.json(await updateAnimation(id, animationInput(req.body ?? {})));
+    res.json(toMutation(await updateAnimation(id, animationInput(req.body ?? {})), ANIMATION_FIELDS));
   } catch (err) {
     handleError(err, res);
   }
@@ -244,7 +266,7 @@ app.post("/api/projects/animations/update", async (req, res) => {
 app.post("/api/projects/animations/delete", async (req, res) => {
   try {
     const id = asString(req.body?.id, "animation id", 80);
-    res.json(await deleteAnimation(id));
+    res.json(toMutation(await deleteAnimation(id), ANIMATION_FIELDS));
   } catch (err) {
     handleError(err, res);
   }
@@ -253,7 +275,10 @@ app.post("/api/projects/animations/delete", async (req, res) => {
 app.post("/api/sprites/style-guides", imageUpload.single("image"), async (req, res) => {
   try {
     if (!req.file) throw new Error("image file is required");
-    res.json(await addStyleGuideImage(req.file.buffer, req.file.originalname));
+    res.json(toMutation(
+      await addStyleGuideImage(req.file.buffer, req.file.originalname),
+      STYLE_GUIDE_FIELDS,
+    ));
   } catch (err) {
     handleError(err, res);
   }
@@ -262,7 +287,7 @@ app.post("/api/sprites/style-guides", imageUpload.single("image"), async (req, r
 app.post("/api/sprites/style-guides/remove", async (req, res) => {
   try {
     const id = asString(req.body?.id, "id", 64);
-    res.json(await removeStyleGuideImage(id));
+    res.json(toMutation(await removeStyleGuideImage(id), STYLE_GUIDE_FIELDS));
   } catch (err) {
     handleError(err, res);
   }
@@ -352,7 +377,7 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
     m = await pruneUnreferencedStyleGuides(m);
 
     res.json({
-      view: toView(m),
+      mutation: toMutation(toView(m), REFERENCE_FIELDS),
       dataUrl: `data:image/png;base64,${base64}`,
     });
   } catch (err) {
@@ -383,7 +408,7 @@ app.post("/api/sprites/upload/prepare", imageUpload.single("image"), async (req,
 app.post("/api/sprites/upload/commit", async (req, res) => {
   try {
     const uploadId = asString(req.body?.uploadId, "uploadId", 64);
-    res.json(await commitReferenceUpload(uploadId));
+    res.json(toMutation(await commitReferenceUpload(uploadId), REFERENCE_FIELDS));
   } catch (err) {
     handleError(err, res);
   }
@@ -451,7 +476,7 @@ app.post("/api/sprites/video", requireKey, async (req, res) => {
       removedChromaFringePixels: null,
     });
 
-    res.json(toView(m));
+    res.json(toMutation(toView(m), VIDEO_FIELDS));
   } catch (err) {
     handleError(err, res);
   }
@@ -515,7 +540,7 @@ app.post("/api/sprites/frames", async (req, res) => {
       removedLowAlphaPixels: extraction.removedLowAlphaPixels,
       removedChromaFringePixels: extraction.removedChromaFringePixels,
     });
-    res.json(toView(manifest));
+    res.json(toMutation(toView(manifest), FRAME_FIELDS));
   } catch (err) {
     handleError(err, res);
   }
