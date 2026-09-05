@@ -1,0 +1,78 @@
+.motion-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.motion-controls__btn {
+  height: 36px;
+}
+
+.workflow-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.workflow-accordion .card {
+  min-height: 0;
+}
+
+.accordion-item {
+  flex: 0 0 auto;
+}
+
+.accordion-item.is-open {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.accordion-item.is-open > .panel-body {
+  flex: 1;
+}
+
+.accordion-item:not(.is-open) > .panel-body {
+  display: none;
+}
+
+.accordion-item[data-accordion-step="3"] > .panel-body {
+  overflow-y: hidden;
+}
+
+.accordion-trigger {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.accordion-trigger__icon {
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  transform: rotate(45deg);
+  transition: transform 120ms ease;
+}
+
+.accordion-item.is-open .accordion-trigger__icon {
+  transform: rotate(225deg);
+}
+
+.movement-step .motion-video-section,
+.movement-step .frames-section {
+  margin-top: 2px;
+}
