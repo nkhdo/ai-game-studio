@@ -1,10 +1,12 @@
 {
-  "name": "ai-game-studio",
+  "name": "sprite-sheet-studio",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "pnpm@11.22.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n server,vite -c blue,magenta \"npm:dev:server\" \"npm:dev:client\"",
+    "preinstall": "node scripts/enforce-pnpm.mjs",
+    "dev": "concurrently -k -n server,vite -c blue,magenta \"pnpm dev:server\" \"pnpm dev:client\"",
     "dev:server": "tsx watch server/index.ts",
     "dev:client": "vite",
     "build": "tsc -p tsconfig.json && vite build",
