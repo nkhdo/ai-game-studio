@@ -13,7 +13,7 @@ const diagnostics = computed(() => [
 </script>
 <template>
   <section class="card movement-step accordion-item" :class="{ 'is-open': studio.activePanel === 'frames' }">
-    <button class="accordion-trigger" type="button" :aria-expanded="studio.activePanel === 'frames'" @click="studio.actions.setPanel('frames')"><span>3. Generate Frames</span><span class="accordion-trigger__icon" /></button>
+    <button class="accordion-trigger" type="button" :aria-expanded="studio.activePanel === 'frames'" @click="studio.actions.setPanel('frames')"><span>Generate Frames</span><span class="accordion-trigger__icon" /></button>
     <div class="panel-body">
       <label class="style-match-row"><input v-model="studio.state.draft.paletteLock" type="checkbox" :disabled="!studio.state.project?.sourceVideoUrl" /><span class="style-match-row__text"><span class="style-match-row__title">Palette Lock</span><span class="style-match-row__hint">Restrict colors to the Reference Sprite’s palette</span></span></label>
       <label class="style-match-row"><input v-model="studio.state.draft.hardAlphaEdges" type="checkbox" :disabled="!studio.state.project?.sourceVideoUrl" /><span class="style-match-row__text"><span class="style-match-row__title">Hard Alpha Edges</span><span class="style-match-row__hint">Use fully opaque or fully transparent pixels</span></span></label>

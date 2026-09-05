@@ -24,7 +24,7 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
 </script>
 <template>
   <section class="card">
-    <h2 class="card__title">4. Animations</h2>
+    <h2 class="card__title">Animations</h2>
     <div class="panel-body"><div class="animation-workspace">
       <aside class="animations-library" aria-label="Saved Animations">
         <div class="gif-section__label">Saved Animations</div>

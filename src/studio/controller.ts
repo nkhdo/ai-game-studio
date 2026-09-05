@@ -212,7 +212,6 @@ export function createStudioController(
         );
         return { ...result.view, spriteUrl: result.dataUrl };
       }, "Reference Sprite ready.");
-      if (state.operations.reference.phase === "success") await setPanelRoute("movement");
     },
     async uploadReference(files) {
       const file = files[0];
@@ -242,7 +241,6 @@ export function createStudioController(
         if (finishOperation(state, "reference", id, project.id, "success", "Reference Sprite uploaded.")) {
           apply(view);
           notify("Reference Sprite uploaded");
-          await setPanelRoute("movement");
         }
       } catch (error) {
         finishOperation(state, "reference", id, project.id, "error", message(error, "Upload failed"));
@@ -278,7 +276,6 @@ export function createStudioController(
       await run("video", "Generating movement video…",
         () => dependencies.server.generateMotionVideo(state.draft.motionPrompt, state.draft.motionModel),
         "Movement video ready.");
-      if (state.operations.video.phase === "success") await setPanelRoute("frames");
     },
     async generateFrames() {
       if (!state.project?.sourceVideoUrl) {
@@ -290,7 +287,6 @@ export function createStudioController(
         "Movement Frames ready.");
       if (state.operations.frames.phase === "success") {
         state.animationDraft.frameSequence = state.project?.frames.map((_, index) => index) ?? [];
-        await setPanelRoute("frames");
       }
     },
     toggleFrame(index) {
