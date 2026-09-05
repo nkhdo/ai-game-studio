@@ -72,9 +72,13 @@ export interface ProjectManifest {
   subjectFillMeasured: number | null;
   sourceVideo: string | null;
   frames: string[];
-  selectedFrameIndices: number[];
-  spritesheet: string | null;
-  previewGif: string | null;
+  framesUpdatedAt: string;
+  /** Legacy migration input; never written by current workflows. */
+  selectedFrameIndices?: number[];
+  /** Legacy migration input; never written by current workflows. */
+  spritesheet?: string | null;
+  /** Legacy migration input; never written by current workflows. */
+  previewGif?: string | null;
   animations: AnimationManifest[];
   updatedAt: string;
 }
@@ -116,10 +120,8 @@ export interface ProjectView {
   colorCount: number | null;
   subjectFillMeasured: number | null;
   frames: string[];
-  selectedFrameIndices: number[];
+  framesUpdatedAt: string;
   sourceVideoUrl: string | null;
-  spritesheetUrl: string | null;
-  previewGifUrl: string | null;
   animations: AnimationView[];
   updatedAt: string;
 }
@@ -161,9 +163,7 @@ export function emptyManifest(id: string = randomUUID(), label = "Untitled proje
     subjectFillMeasured: null,
     sourceVideo: null,
     frames: [],
-    selectedFrameIndices: [],
-    spritesheet: null,
-    previewGif: null,
+    framesUpdatedAt: now,
     animations: [],
     updatedAt: now,
   };
@@ -190,22 +190,27 @@ export async function readManifest(dirName: string): Promise<ProjectManifest> {
       label: parsed.label ?? parsed.name ?? "Untitled project",
       createdAt: parsed.createdAt ?? parsed.updatedAt ?? new Date().toISOString(),
       revision: Number.isInteger(parsed.revision) ? parsed.revision! : 0,
+      framesUpdatedAt: parsed.framesUpdatedAt ?? parsed.updatedAt ?? new Date().toISOString(),
     };
     delete (hydrated as Partial<ProjectManifest> & { name?: string }).name;
     hydrated.animations = Array.isArray(parsed.animations) ? parsed.animations : [];
+    const legacyFrameIndices = hydrated.selectedFrameIndices ?? [];
     if (hydrated.animations.length === 0 && hydrated.spritesheet) {
       hydrated.animations = [{
         id: "legacy",
         name: "animation-1",
-        frameIndices: [...hydrated.selectedFrameIndices],
-        frames: hydrated.selectedFrameIndices.flatMap((index) => hydrated.frames[index] ? [hydrated.frames[index]] : []),
+        frameIndices: [...legacyFrameIndices],
+        frames: legacyFrameIndices.flatMap((index) => hydrated.frames[index] ? [hydrated.frames[index]] : []),
         fps: 12,
         spritesheet: hydrated.spritesheet,
-        previewGif: hydrated.previewGif,
+        previewGif: hydrated.previewGif ?? null,
         createdAt: hydrated.updatedAt,
         updatedAt: hydrated.updatedAt,
       }];
     }
+    delete hydrated.selectedFrameIndices;
+    delete hydrated.spritesheet;
+    delete hydrated.previewGif;
     if (!hydrated.spriteAcquisition && hydrated.sprite) hydrated.spriteAcquisition = "generated";
     // Older manifests inferred source.mp4 from the presence of frames.
     if (parsed.sourceVideo === undefined && hydrated.frames.length > 0) {
@@ -283,10 +288,8 @@ export function toView(m: ProjectManifest): ProjectView {
     colorCount: m.colorCount ?? null,
     subjectFillMeasured: m.subjectFillMeasured ?? null,
     frames: m.frames.map((f) => base + f),
-    selectedFrameIndices: m.selectedFrameIndices,
+    framesUpdatedAt: m.framesUpdatedAt,
     sourceVideoUrl: m.sourceVideo ? base + m.sourceVideo : null,
-    spritesheetUrl: m.spritesheet ? base + m.spritesheet : null,
-    previewGifUrl: m.previewGif ? base + m.previewGif : null,
     animations: m.animations.map((animation) => ({
       id: animation.id,
       name: animation.name,

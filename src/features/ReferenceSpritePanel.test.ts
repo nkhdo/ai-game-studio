@@ -19,8 +19,8 @@ function project(): ProjectView {
     removedLowAlphaPixels: null, removedChromaFringePixels: null,
     spriteUrl: null, spriteDimensions: null, targetFrameSize: null,
     subjectFillPct: null, colorCount: null, subjectFillMeasured: null,
-    frames: [], selectedFrameIndices: [], sourceVideoUrl: null,
-    spritesheetUrl: null, previewGifUrl: null, animations: [], updatedAt: "",
+    frames: [], framesUpdatedAt: "", sourceVideoUrl: null,
+    animations: [], updatedAt: "",
   };
 }
 

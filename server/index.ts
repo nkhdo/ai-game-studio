@@ -24,7 +24,6 @@ import {
   normalizeVideoInput,
 } from "./video.js";
 import { extractFrames } from "./extract-frames.js";
-import { buildPreviewGif } from "./build-gif.js";
 import {
   PROJECTS_DIR,
   PROJECT_FILES,
@@ -35,7 +34,6 @@ import {
   readPngDims,
   runInProject,
   saveBase64Image,
-  saveDataUrlPng,
   safeProjectId,
 } from "./files.js";
 import {
@@ -56,7 +54,6 @@ import {
   wipeLatestSpritesheet,
 } from "./projects.js";
 import {
-  DEFAULT_TARGET_FRAME_SIZE,
   TARGET_FRAME_SIZES,
   commitReferenceUpload,
   discardPreparedUpload,
@@ -84,8 +81,6 @@ app.use(async (req, res, next) => {
   const raw = req.header("X-Project-ID");
   const requiresProject = req.path.startsWith("/api/sprites/") ||
     req.path === "/api/projects/draft" ||
-    req.path === "/api/projects/selection" ||
-    req.path === "/api/projects/spritesheet" ||
     req.path.startsWith("/api/projects/animations");
   if (!requiresProject) { next(); return; }
   if (!raw) { handleError(new Error("project id is required"), res); return; }
@@ -220,53 +215,12 @@ app.post("/api/projects/delete", async (req, res) => {
   }
 });
 
-app.post("/api/projects/selection", async (req, res) => {
-  try {
-    const indices = req.body?.selectedIndices;
-    if (!Array.isArray(indices) || indices.some((i) => typeof i !== "number")) {
-      throw new Error("selectedIndices must be an array of numbers");
-    }
-    const m = await updateLatest({ selectedFrameIndices: indices });
-    res.json(toView(m));
-  } catch (err) {
-    handleError(err, res);
-  }
-});
-
-app.post("/api/projects/spritesheet", async (req, res) => {
-  try {
-    const dataUrl = asString(req.body?.dataUrl, "dataUrl", 50_000_000);
-    const spritesheetAbs = path.join(activeProjectDir(), PROJECT_FILES.spritesheet);
-    await saveDataUrlPng(dataUrl, spritesheetAbs);
-
-    let m = await updateLatest({ spritesheet: PROJECT_FILES.spritesheet });
-
-    // Best-effort GIF build from current selection
-    try {
-      const gifName = await buildPreviewGif(
-        m.selectedFrameIndices,
-        m.targetFrameSize?.w ?? DEFAULT_TARGET_FRAME_SIZE,
-      );
-      m = await updateLatest({ previewGif: gifName });
-    } catch (gifErr) {
-      const msg = gifErr instanceof Error ? gifErr.message : String(gifErr);
-      console.warn("[api] preview gif build failed:", msg);
-      m = await updateLatest({ previewGif: null });
-    }
-
-    res.json(toView(m));
-  } catch (err) {
-    handleError(err, res);
-  }
-});
-
 function animationInput(body: Record<string, unknown>) {
   return {
     name: typeof body.name === "string" ? body.name : "",
     frameIndices: Array.isArray(body.frameIndices) ? body.frameIndices as number[] : [],
     fps: Number(body.fps),
     dataUrl: typeof body.dataUrl === "string" ? body.dataUrl : "",
-    sourceAnimationId: typeof body.sourceAnimationId === "string" ? body.sourceAnimationId : undefined,
   };
 }
 
@@ -390,9 +344,6 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       motionPrompt: "",
       motionModel: DEFAULT_VIDEO_MODEL,
       frames: [],
-      selectedFrameIndices: [],
-      spritesheet: null,
-      previewGif: null,
       animations: [],
       preservedOffPalettePixels: null,
       removedLowAlphaPixels: null,
@@ -495,12 +446,9 @@ app.post("/api/sprites/video", requireKey, async (req, res) => {
       motionModel: model,
       sourceVideo: PROJECT_FILES.source,
       frames: [],
-      selectedFrameIndices: [],
       preservedOffPalettePixels: null,
       removedLowAlphaPixels: null,
       removedChromaFringePixels: null,
-      spritesheet: null,
-      previewGif: null,
     });
 
     res.json(toView(m));
@@ -560,14 +508,12 @@ app.post("/api/sprites/frames", async (req, res) => {
     const frames = extraction.files.map((file) => `${PROJECT_FILES.framesDir}/${file}`);
     const manifest = await updateLatest({
       frames,
-      selectedFrameIndices: frames.map((_, index) => index),
+      framesUpdatedAt: new Date().toISOString(),
       paletteLock,
       hardAlphaEdges,
       preservedOffPalettePixels: extraction.preservedOffPalettePixels,
       removedLowAlphaPixels: extraction.removedLowAlphaPixels,
       removedChromaFringePixels: extraction.removedChromaFringePixels,
-      spritesheet: null,
-      previewGif: null,
     });
     res.json(toView(manifest));
   } catch (err) {

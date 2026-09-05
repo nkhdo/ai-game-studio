@@ -22,8 +22,8 @@ function project(id = "one"): ProjectView {
     removedLowAlphaPixels: null, removedChromaFringePixels: null,
     spriteUrl: null, spriteDimensions: null, targetFrameSize: null,
     subjectFillPct: null, colorCount: null, subjectFillMeasured: null,
-    frames: ["one.png", "two.png", "three.png"], selectedFrameIndices: [],
-    sourceVideoUrl: null, spritesheetUrl: null, previewGifUrl: null,
+    frames: ["one.png", "two.png", "three.png"], framesUpdatedAt: "2026-01-01T00:00:00Z",
+    sourceVideoUrl: null,
     animations: [], updatedAt: "",
   };
 }

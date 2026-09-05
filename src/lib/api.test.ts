@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getProject, saveSelection } from "./api";
+import { getProject, updateAnimation } from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -16,10 +16,19 @@ describe("Project request context", () => {
       }), { status: 200 }));
     vi.stubGlobal("fetch", fetch);
     await getProject("other-project");
-    await saveSelection({ id: "active-project", revision: 7 }, [0]);
+    await updateAnimation({ id: "active-project", revision: 7 }, "animation", {
+      name: "run", frameIndices: [0], fps: 12, dataUrl: "data:image/png;base64,AA==",
+    });
     expect(fetch.mock.calls[1]?.[1]?.headers).toMatchObject({
       "X-Project-ID": "active-project",
       "X-Project-Revision": "7",
+    });
+    expect(JSON.parse(String(fetch.mock.calls[1]?.[1]?.body))).toEqual({
+      id: "animation",
+      name: "run",
+      frameIndices: [0],
+      fps: 12,
+      dataUrl: "data:image/png;base64,AA==",
     });
   });
 
@@ -29,8 +38,8 @@ describe("Project request context", () => {
     }));
     vi.stubGlobal("fetch", fetch);
     await Promise.all([
-      saveSelection({ id: "project-one", revision: 4 }, [0]),
-      saveSelection({ id: "project-two", revision: 11 }, [1]),
+      updateAnimation({ id: "project-one", revision: 4 }, "a", { name: "a", frameIndices: [0], fps: 12, dataUrl: "data:image/png;base64,AA==" }),
+      updateAnimation({ id: "project-two", revision: 11 }, "b", { name: "b", frameIndices: [1], fps: 12, dataUrl: "data:image/png;base64,AA==" }),
     ]);
     expect(fetch.mock.calls.map((call) => call[1]?.headers)).toEqual([
       expect.objectContaining({ "X-Project-ID": "project-one", "X-Project-Revision": "4" }),

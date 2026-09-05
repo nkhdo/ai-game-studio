@@ -15,8 +15,8 @@ const view = vi.hoisted(() => ({
   preservedOffPalettePixels: null, removedLowAlphaPixels: null,
   removedChromaFringePixels: null, spriteUrl: null, spriteDimensions: null,
   targetFrameSize: null, subjectFillPct: null, colorCount: null,
-  subjectFillMeasured: null, frames: [], selectedFrameIndices: [],
-  sourceVideoUrl: null, spritesheetUrl: null, previewGifUrl: null,
+  subjectFillMeasured: null, frames: [], framesUpdatedAt: "2026-01-01T00:00:00Z",
+  sourceVideoUrl: null,
   animations: [], updatedAt: "2026-01-01T00:00:00Z",
 } satisfies ProjectView));
 
@@ -28,7 +28,6 @@ vi.mock("./lib/api", () => ({
   getProject: vi.fn().mockResolvedValue(view),
   createProject: vi.fn().mockResolvedValue(view),
   saveProjectDraft: vi.fn().mockResolvedValue(view),
-  saveSelection: vi.fn().mockResolvedValue(view),
 }));
 
 describe("App", () => {

@@ -6,6 +6,7 @@ import type { StudioContext } from "./context";
 import type { StudioDependencies } from "./dependencies";
 import { toServerDraft } from "./draft-persistence";
 import { DraftSynchronizer } from "./draft-sync";
+import { hydrateProjectAssets } from "./project-view";
 import {
   beginOperation,
   createStudioState,
@@ -21,33 +22,6 @@ import { createMovementActions } from "./workflows/movement";
 import { createProjectActions } from "./workflows/projects";
 import { createReferenceActions } from "./workflows/reference";
 import type { WorkflowEnvironment } from "./workflows/types";
-
-function bust(url: string | null, key: string): string | null {
-  if (!url) return null;
-  if (url.startsWith("data:")) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(key)}`;
-}
-
-function cacheBustProject(view: ProjectView): ProjectView {
-  return {
-    ...view,
-    spriteUrl: bust(view.spriteUrl, view.updatedAt),
-    sourceVideoUrl: bust(view.sourceVideoUrl, view.updatedAt),
-    spritesheetUrl: bust(view.spritesheetUrl, view.updatedAt),
-    previewGifUrl: bust(view.previewGifUrl, view.updatedAt),
-    frames: view.frames.map((url) => bust(url, view.updatedAt)!),
-    styleGuides: view.styleGuides.map((guide) => ({
-      ...guide,
-      url: bust(guide.url, view.updatedAt)!,
-    })),
-    animations: view.animations.map((animation) => ({
-      ...animation,
-      frameUrls: animation.frameUrls.map((url) => bust(url, animation.updatedAt)!),
-      spritesheetUrl: bust(animation.spritesheetUrl, animation.updatedAt)!,
-      previewGifUrl: bust(animation.previewGifUrl, animation.updatedAt),
-    })),
-  };
-}
 
 export interface StudioController extends StudioContext {
   ready: boolean;
@@ -109,7 +83,7 @@ export function createStudioController(
 
   function apply(view: ProjectView, preserveDraft = false) {
     suppressDraftSave = true;
-    const hydrated = cacheBustProject(view);
+    const hydrated = hydrateProjectAssets(view);
     reconcileProject(state, hydrated, { preserveDraft });
     if (!preserveDraft) sync.attach(hydrated.id, hydrated.revision, state.draft);
     suppressDraftSave = false;

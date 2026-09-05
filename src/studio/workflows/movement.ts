@@ -2,18 +2,7 @@ import { toggleFrame } from "../state";
 import { requestContext, type WorkflowEnvironment } from "./types";
 
 export function createMovementActions(env: WorkflowEnvironment) {
-  const { state, dependencies, run, sync } = env;
-  let selectionTimer: number | null = null;
-
-  function persistSelection(indices: number[]) {
-    const project = state.project;
-    if (!project) return Promise.resolve();
-    return dependencies.server.saveSelection(requestContext(project), indices).then((view) => {
-      if (state.project?.id !== project.id) return;
-      state.project.revision = view.revision;
-      sync.advanceRevision(project.id, view.revision);
-    });
-  }
+  const { state, dependencies, run } = env;
 
   return {
     async generateVideo() {
@@ -45,22 +34,16 @@ export function createMovementActions(env: WorkflowEnvironment) {
 
     toggleFrame(index: number) {
       toggleFrame(state, index);
-      if (selectionTimer !== null) dependencies.clock.clearTimeout(selectionTimer);
-      selectionTimer = dependencies.clock.setTimeout(() => {
-        void persistSelection([...state.animationDraft.frameSequence]);
-      }, 700);
     },
 
     selectAll() {
       state.animationDraft.frozenFrameUrls = null;
       state.animationDraft.frameSequence = state.project?.frames.map((_, index) => index) ?? [];
-      void persistSelection([...state.animationDraft.frameSequence]);
     },
 
     selectNone() {
       state.animationDraft.frozenFrameUrls = null;
       state.animationDraft.frameSequence = [];
-      void persistSelection([]);
     },
   };
 }

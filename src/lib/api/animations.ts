@@ -6,7 +6,6 @@ export interface AnimationSaveInput {
   frameIndices: number[];
   fps: number;
   dataUrl: string;
-  sourceAnimationId?: string;
 }
 
 export function createAnimation(

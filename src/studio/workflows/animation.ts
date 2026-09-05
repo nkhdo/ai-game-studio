@@ -35,7 +35,6 @@ export function createAnimationActions(env: WorkflowEnvironment) {
         frameIndices: [...state.animationDraft.frameSequence],
         fps: state.draft.animationFps,
         dataUrl: sheet.dataUrl,
-        sourceAnimationId: state.animationDraft.activeAnimationId ?? undefined,
       };
       await run("animation", update ? "Updating Animation…" : "Saving Animation…",
         (project) => update && state.animationDraft.activeAnimationId
