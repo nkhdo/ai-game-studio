@@ -13,16 +13,6 @@ const open = ref(false);
         <span v-for="index in 9" :key="index" />
       </span>
       <span class="app-header__title">SpriteSheetStudio</span>
-    </div>
-    <div class="app-header__actions">
-      <button
-        v-if="studio.state.save.phase !== 'idle'"
-        class="save-indicator"
-        type="button"
-        @click="studio.actions.retrySave"
-      >
-        {{ studio.state.save.phase === "saving" ? "Saving…" : studio.state.save.phase === "saved" ? "Saved" : "Not saved · Retry" }}
-      </button>
       <div class="load-menu-wrap">
         <button
           class="btn btn--secondary btn--sm project-select"
@@ -63,6 +53,16 @@ const open = ref(false);
           <button class="load-menu__create" type="button" @click="studio.actions.createProject(); open = false">＋ Create new</button>
         </div>
       </div>
+    </div>
+    <div class="app-header__actions">
+      <button
+        v-if="studio.state.save.phase !== 'idle'"
+        class="save-indicator"
+        type="button"
+        @click="studio.actions.retrySave"
+      >
+        {{ studio.state.save.phase === "saving" ? "Saving…" : studio.state.save.phase === "saved" ? "Saved" : "Not saved · Retry" }}
+      </button>
     </div>
   </header>
 </template>

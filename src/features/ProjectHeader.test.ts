@@ -36,4 +36,16 @@ describe("ProjectHeader", () => {
     await trigger.trigger("click");
     expect(chevron.classes()).toContain("is-open");
   });
+
+  it("places the Project selector beside the app name", () => {
+    const wrapper = mount(ProjectHeader, {
+      global: { provide: { [studioKey as symbol]: context() } },
+    });
+    expect(
+      wrapper.get(".app-header__brand").find("[data-project-select]").exists(),
+    ).toBe(true);
+    expect(
+      wrapper.get(".app-header__actions").find("[data-project-select]").exists(),
+    ).toBe(false);
+  });
 });
