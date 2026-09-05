@@ -106,10 +106,12 @@ export function setActiveProject(id: string, revision = 0): void {
   activeProjectRevision = revision;
 }
 
-function projectHeaders(): Record<string, string> {
-  return activeProjectId ? {
-    "X-Project-ID": activeProjectId,
-    "X-Project-Revision": String(activeProjectRevision),
+function projectHeaders(context?: { id: string; revision: number }): Record<string, string> {
+  const id = context?.id ?? activeProjectId;
+  const revision = context?.revision ?? activeProjectRevision;
+  return id ? {
+    "X-Project-ID": id,
+    "X-Project-Revision": String(revision),
   } : {};
 }
 
@@ -136,10 +138,14 @@ export interface PreparedSpriteUpload {
   requiresConfirmation: boolean;
 }
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
+async function postJson<T>(
+  path: string,
+  body: unknown,
+  context?: { id: string; revision: number },
+): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...projectHeaders() },
+    headers: { "Content-Type": "application/json", ...projectHeaders(context) },
     body: JSON.stringify(body),
   });
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -271,6 +277,19 @@ export function saveProjectDraft(
   base: Record<string, unknown>,
 ): Promise<ProjectView> {
   return postJson("/api/projects/draft", { revision, patch, base });
+}
+
+export function saveProjectDraftFor(
+  projectId: string,
+  revision: number,
+  patch: Record<string, unknown>,
+  base: Record<string, unknown>,
+): Promise<ProjectView> {
+  return postJson(
+    "/api/projects/draft",
+    { revision, patch, base },
+    { id: projectId, revision },
+  );
 }
 
 export function saveSelection(selectedIndices: number[]): Promise<ProjectView> {
