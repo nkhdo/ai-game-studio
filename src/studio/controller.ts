@@ -1,7 +1,6 @@
 import { computed, reactive, watch } from "vue";
 import type { RouteLocationNormalizedLoaded, Router } from "vue-router";
-import type { ProjectRequestContext, ProjectView } from "../lib/api";
-import { composeSpritesheet } from "../lib/spritesheet";
+import type { ProjectView } from "../lib/api";
 import { routeAnimation, routePanel, type LeftPanel } from "../router";
 import type { StudioContext } from "./context";
 import type { StudioDependencies } from "./dependencies";
@@ -14,16 +13,14 @@ import {
   finishOperation,
   newAnimationDraft,
   reconcileProject,
-  toggleFrame,
   useStudioProjections,
 } from "./state";
-
-const ACCEPTED_IMAGES = new Set(["image/png", "image/jpeg", "image/webp"]);
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
-function message(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
+import { errorMessage } from "./workflows/types";
+import { createAnimationActions } from "./workflows/animation";
+import { createMovementActions } from "./workflows/movement";
+import { createProjectActions } from "./workflows/projects";
+import { createReferenceActions } from "./workflows/reference";
+import type { WorkflowEnvironment } from "./workflows/types";
 
 function bust(url: string | null, key: string): string | null {
   if (!url) return null;
@@ -52,17 +49,6 @@ function cacheBustProject(view: ProjectView): ProjectView {
   };
 }
 
-function validateImages(files: File[], maximum: number): string | null {
-  if (files.length > maximum) return `Choose ${maximum} or fewer images.`;
-  for (const file of files) {
-    if (file.size > MAX_FILE_SIZE) return `'${file.name}' exceeds 10 MB.`;
-    if (file.type && !ACCEPTED_IMAGES.has(file.type)) {
-      return `'${file.name}' must be PNG, JPEG, or WebP.`;
-    }
-  }
-  return null;
-}
-
 export interface StudioController extends StudioContext {
   ready: boolean;
   bootError: string;
@@ -78,7 +64,6 @@ export function createStudioController(
   const state = createStudioState();
   const projections = useStudioProjections(state);
   let suppressDraftSave = true;
-  let selectionTimer: number | null = null;
   let toastTimer: number | null = null;
 
   const context = reactive({
@@ -160,247 +145,28 @@ export function createStudioController(
       apply(view, options.preserveDraft);
       notify(success);
     } catch (error) {
-      finishOperation(state, name, id, project.id, "error", message(error, "Operation failed"));
+      finishOperation(state, name, id, project.id, "error", errorMessage(error, "Operation failed"));
     }
   }
 
-  function currentFrames(): string[] {
-    return state.animationDraft.frozenFrameUrls ??
-      state.animationDraft.frameSequence.flatMap((index) =>
-        state.project?.frames[index] ? [state.project.frames[index]] : []);
-  }
-
-  function requestContext(project: ProjectView): ProjectRequestContext {
-    return { id: project.id, revision: project.revision };
-  }
-
-  function persistSelection(project: ProjectView, indices: number[]) {
-    return dependencies.server.saveSelection(requestContext(project), indices).then((view) => {
-      if (state.project?.id !== project.id) return;
-      state.project.revision = view.revision;
-      sync.advanceRevision(project.id, view.revision);
-    });
-  }
-
+  const workflowEnvironment: WorkflowEnvironment = {
+    state,
+    context,
+    dependencies,
+    sync,
+    run,
+    apply,
+    notify,
+    refreshProjects,
+    openProject,
+    setPanel: setPanelRoute,
+  };
   context.actions = {
-    async setPanel(panel) {
-      await setPanelRoute(panel, state.animationDraft.activeAnimationId);
-    },
-    async generateReference() {
-      const prompt = state.draft.spritePrompt.trim();
-      if (!prompt) {
-        state.operations.reference = { ...state.operations.reference, phase: "error", message: "Enter a sprite prompt first." };
-        return;
-      }
-      if (
-        state.project?.animations.length &&
-        !await dependencies.confirmation.confirm("Replace the Reference Sprite? All saved Animations will be removed.")
-      ) return;
-      await run("reference", "Generating Reference Sprite…", async (project) => {
-        const result = await dependencies.server.generateSprite(
-          requestContext(project),
-          prompt,
-          state.draft.spriteModel,
-          {
-            frameSize: state.draft.frameSize,
-            subjectFillPct: state.draft.subjectFillPct,
-            colorCount: state.draft.colorCount,
-          },
-          state.draft.spritePaletteLock,
-        );
-        return { ...result.view, spriteUrl: result.dataUrl };
-      }, "Reference Sprite ready.");
-    },
-    async uploadReference(files) {
-      const file = files[0];
-      const invalid = validateImages(files.slice(0, 1), 1);
-      if (!file || invalid) {
-        state.operations.reference = { ...state.operations.reference, phase: "error", message: invalid ?? "Choose an image." };
-        return;
-      }
-      const project = state.project;
-      if (!project) return;
-      const id = beginOperation(state, "reference", project.id, "Preparing Reference Sprite…");
-      try {
-        const context = requestContext(project);
-        const prepared = await dependencies.server.prepareSpriteUpload(context, file, {
-          frameSize: state.draft.frameSize,
-          subjectFillPct: state.draft.subjectFillPct,
-          colorCount: state.draft.colorCount,
-        });
-        if (
-          prepared.requiresConfirmation &&
-          !await dependencies.confirmation.confirm("Replace the Reference Sprite and remove its Downstream Artifacts?")
-        ) {
-          await dependencies.server.discardSpriteUpload(context);
-          finishOperation(state, "reference", id, project.id, "success", "Upload cancelled.");
-          return;
-        }
-        const view = await dependencies.server.commitSpriteUpload(context, prepared.uploadId);
-        if (finishOperation(state, "reference", id, project.id, "success", "Reference Sprite uploaded.")) {
-          apply(view);
-          notify("Reference Sprite uploaded");
-        }
-      } catch (error) {
-        finishOperation(state, "reference", id, project.id, "error", message(error, "Upload failed"));
-      }
-    },
-    async addStyleGuides(files) {
-      const available = Math.max(0, 3 - (state.project?.styleGuides.length ?? 0));
-      const invalid = validateImages(files, available);
-      if (invalid) {
-        state.operations.styleGuide = { ...state.operations.styleGuide, phase: "error", message: invalid };
-        return;
-      }
-      await run("styleGuide", "Adding Style Guide Images…", async (project) => {
-        let view = project;
-        for (const file of files) {
-          view = await dependencies.server.uploadStyleGuide(requestContext(view), file);
-        }
-        return view;
-      }, "Style Guide Images updated.", { preserveDraft: true });
-    },
-    async removeStyleGuide(id) {
-      await run("styleGuide", "Removing Style Guide Image…",
-        (project) => dependencies.server.removeStyleGuide(requestContext(project), id), "Style Guide Image removed.",
-        { preserveDraft: true });
-    },
-    async generateVideo() {
-      if (!state.project?.spriteUrl || !state.draft.motionPrompt.trim()) {
-        state.operations.video = { ...state.operations.video, phase: "error", message: "A Reference Sprite and movement prompt are required." };
-        return;
-      }
-      if (
-        state.project.frames.length &&
-        !await dependencies.confirmation.confirm("Generate a new video and replace the current Movement Frames?")
-      ) return;
-      await run("video", "Generating movement video…",
-        (project) => dependencies.server.generateMotionVideo(
-          requestContext(project),
-          state.draft.motionPrompt,
-          state.draft.motionModel,
-        ),
-        "Movement video ready.");
-    },
-    async generateFrames() {
-      if (!state.project?.sourceVideoUrl) {
-        state.operations.frames = { ...state.operations.frames, phase: "error", message: "Generate a video first." };
-        return;
-      }
-      await run("frames", "Generating Movement Frames…",
-        (project) => dependencies.server.generateMovementFrames(
-          requestContext(project),
-          state.draft.paletteLock,
-          state.draft.hardAlphaEdges,
-        ),
-        "Movement Frames ready.");
-      if (state.operations.frames.phase === "success") {
-        state.animationDraft.frameSequence = state.project?.frames.map((_, index) => index) ?? [];
-      }
-    },
-    toggleFrame(index) {
-      toggleFrame(state, index);
-      const project = state.project;
-      if (!project) return;
-      if (selectionTimer !== null) dependencies.clock.clearTimeout(selectionTimer);
-      selectionTimer = dependencies.clock.setTimeout(() => {
-        void persistSelection(project, [...state.animationDraft.frameSequence]);
-      }, 700);
-    },
-    selectAll() {
-      state.animationDraft.frozenFrameUrls = null;
-      state.animationDraft.frameSequence = state.project?.frames.map((_, index) => index) ?? [];
-      if (state.project) void persistSelection(
-        state.project,
-        [...state.animationDraft.frameSequence],
-      );
-    },
-    selectNone() {
-      state.animationDraft.frozenFrameUrls = null;
-      state.animationDraft.frameSequence = [];
-      if (state.project) void persistSelection(state.project, []);
-    },
-    async activateAnimation(id) {
-      const animation = state.project?.animations.find((candidate) => candidate.id === id);
-      if (animation) editAnimation(state, animation);
-      else newAnimationDraft(state);
-      await setPanelRoute(context.activePanel, animation?.id);
-    },
-    async saveAnimation(update) {
-      const frames = currentFrames();
-      const name = state.draft.animationName.trim();
-      if (!name || frames.length === 0 || !state.project?.targetFrameSize) {
-        state.operations.animation = { ...state.operations.animation, phase: "error", message: "Choose frames and enter an Animation name." };
-        return;
-      }
-      const sheet = await composeSpritesheet({
-        frameSrcs: frames,
-        cellSize: state.project.targetFrameSize.w,
-      });
-      const input = {
-        name,
-        frameIndices: [...state.animationDraft.frameSequence],
-        fps: state.draft.animationFps,
-        dataUrl: sheet.dataUrl,
-        sourceAnimationId: state.animationDraft.activeAnimationId ?? undefined,
-      };
-      await run("animation", update ? "Updating Animation…" : "Saving Animation…",
-        (project) => update && state.animationDraft.activeAnimationId
-          ? dependencies.server.updateAnimation(
-            requestContext(project),
-            state.animationDraft.activeAnimationId,
-            input,
-          )
-          : dependencies.server.createAnimation(requestContext(project), input),
-        update ? "Animation updated." : "Animation saved.");
-      const saved = state.project?.animations.find((animation) => animation.name === name);
-      if (saved) await context.actions.activateAnimation(saved.id);
-    },
-    async deleteAnimation(id) {
-      if (!await dependencies.confirmation.confirm("Delete this Animation?")) return;
-      await run("animation", "Deleting Animation…",
-        (project) => dependencies.server.deleteAnimation(requestContext(project), id), "Animation deleted.");
-      if (state.animationDraft.activeAnimationId === id) newAnimationDraft(state);
-    },
-    exportAnimation(id) {
-      const animation = state.project?.animations.find((candidate) => candidate.id === id);
-      if (!animation) return;
-      const link = document.createElement("a");
-      link.href = animation.spritesheetUrl;
-      link.download = `${animation.name}.png`;
-      link.click();
-    },
-    async createProject() {
-      await sync.flush();
-      const view = await dependencies.server.createProject();
-      await openProject(view);
-    },
-    async switchProject(id) {
-      if (id === state.project?.id) return;
-      await sync.flush();
-      await openProject(await dependencies.server.getProject(id));
-    },
-    async renameProject(id) {
-      const project = context.projects.find((candidate) => candidate.id === id);
-      const label = await dependencies.confirmation.prompt("Project label", project?.label ?? "");
-      if (!label?.trim()) return;
-      const view = await dependencies.server.renameProject(id, label.trim());
-      if (id === state.project?.id) apply(view);
-      await refreshProjects();
-    },
-    async deleteProject(id) {
-      if (!await dependencies.confirmation.confirm("Delete this Project?")) return;
-      await dependencies.server.deleteProject(id);
-      await refreshProjects();
-      if (id !== state.project?.id) return;
-      const view = context.projects[0]
-        ? await dependencies.server.getProject(context.projects[0].id)
-        : await dependencies.server.createProject();
-      await openProject(view);
-    },
-    async retrySave() {
-      await sync.flush();
-    },
+    setPanel: async (panel) => setPanelRoute(panel, state.animationDraft.activeAnimationId),
+    ...createReferenceActions(workflowEnvironment),
+    ...createMovementActions(workflowEnvironment),
+    ...createAnimationActions(workflowEnvironment),
+    ...createProjectActions(workflowEnvironment),
   };
 
   async function openProject(view: ProjectView) {
@@ -502,7 +268,7 @@ export function createStudioController(
     });
     context.ready = true;
   }).catch((error) => {
-    context.bootError = message(error, "Backend not reachable.");
+    context.bootError = errorMessage(error, "Backend not reachable.");
   });
 
   return context;
