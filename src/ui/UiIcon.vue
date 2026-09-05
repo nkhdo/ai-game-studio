@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ name: "plus" | "minus" | "play" | "pause" | "previous" | "next" | "expand" | "collapse" | "chevron-down" | "edit" | "trash" }>();
+defineProps<{ name: "plus" | "minus" | "play" | "pause" | "previous" | "next" | "expand" | "collapse" | "sun" | "moon" | "chevron-down" | "edit" | "trash" }>();
 </script>
 
 <template>
@@ -57,6 +57,19 @@ defineProps<{ name: "plus" | "minus" | "play" | "pause" | "previous" | "next" | 
       fill="none"
       stroke="currentColor"
       stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <g v-else-if="name === 'sun'" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round">
+      <circle cx="8" cy="8" r="2.5" />
+      <path d="M8 1.5v1.3M8 13.2v1.3M1.5 8h1.3M13.2 8h1.3M3.4 3.4l.9.9m7.4 7.4.9.9m0-9.2-.9.9m-7.4 7.4-.9.9" />
+    </g>
+    <path
+      v-else-if="name === 'moon'"
+      d="M12.8 10.4A5.3 5.3 0 0 1 5.6 3.2 5.4 5.4 0 1 0 12.8 10.4Z"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.35"
       stroke-linecap="round"
       stroke-linejoin="round"
     />
