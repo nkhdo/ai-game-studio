@@ -298,6 +298,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-subtle);
+  cursor: pointer;
 }
 
 .animation-row.is-active {
