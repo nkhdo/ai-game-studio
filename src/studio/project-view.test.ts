@@ -20,4 +20,20 @@ describe("Project asset hydration", () => {
     expect(after).toEqual(before);
     expect(after[0]).toContain("v=frames-v1");
   });
+
+  it("does not change hydrated Movement Frame URLs when hydrating again", () => {
+    const view = {
+      frames: ["/projects/one/frames/frame-1.png"],
+      framesUpdatedAt: "frames-v1",
+      updatedAt: "project-v2",
+      styleGuides: [],
+      animations: [],
+      spriteUrl: null,
+      sourceVideoUrl: null,
+    } as unknown as ProjectView;
+
+    const hydrated = hydrateProjectAssets(view);
+
+    expect(hydrateProjectAssets(hydrated).frames).toEqual(hydrated.frames);
+  });
 });

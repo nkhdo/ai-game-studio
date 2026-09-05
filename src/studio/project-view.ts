@@ -2,7 +2,11 @@ import type { ProjectView } from "../lib/api";
 
 function version(url: string | null, key: string): string | null {
   if (!url || url.startsWith("data:")) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(key)}`;
+  const [withoutHash, hash] = url.split("#", 2);
+  const [pathname, query = ""] = withoutHash.split("?", 2);
+  const parameters = new URLSearchParams(query);
+  parameters.set("v", key);
+  return `${pathname}?${parameters.toString()}${hash === undefined ? "" : `#${hash}`}`;
 }
 
 export function hydrateProjectAssets(view: ProjectView): ProjectView {
