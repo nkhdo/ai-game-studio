@@ -17,7 +17,7 @@ const diagnostics = computed(() => [
     <div class="panel-body">
       <label class="style-match-row"><input v-model="studio.state.draft.paletteLock" type="checkbox" :disabled="!studio.state.project?.sourceVideoUrl" /><span class="style-match-row__text"><span class="style-match-row__title">Palette Lock</span><span class="style-match-row__hint">Restrict colors to the Reference Sprite’s palette</span></span></label>
       <label class="style-match-row"><input v-model="studio.state.draft.hardAlphaEdges" type="checkbox" :disabled="!studio.state.project?.sourceVideoUrl" /><span class="style-match-row__text"><span class="style-match-row__title">Hard Alpha Edges</span><span class="style-match-row__hint">Use fully opaque or fully transparent pixels</span></span></label>
-      <BaseButton block :busy="operation.phase === 'running'" :disabled="!studio.state.project?.sourceVideoUrl" @click="studio.actions.generateFrames">Generate Frames</BaseButton>
+      <BaseButton variant="primary" block :busy="operation.phase === 'running'" :disabled="!studio.state.project?.sourceVideoUrl" @click="studio.actions.generateFrames">Generate Frames</BaseButton>
       <div v-if="diagnostics" class="geometry-hint">Current frames: {{ diagnostics }}</div>
       <BaseStatus :message="operation.message" :kind="operation.phase === 'error' ? 'error' : operation.phase === 'success' ? 'success' : 'info'" :busy="operation.phase === 'running'" />
     </div>
