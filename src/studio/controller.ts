@@ -116,16 +116,19 @@ export function createStudioController(
     success: string,
     options: { preserveDraft?: boolean } = {},
   ) {
-    const project = state.project;
-    if (!project) return;
-    const id = beginOperation(state, name, project.id, progress);
+    const initialProject = state.project;
+    if (!initialProject) return;
+    const id = beginOperation(state, name, initialProject.id, progress);
     try {
+      await sync.flush();
+      const project = state.project;
+      if (!project || project.id !== initialProject.id) return;
       const mutation = await task(project);
       if (!finishOperation(state, name, id, project.id, "success", success)) return;
       applyMutation(project, mutation, options.preserveDraft);
       notify(success);
     } catch (error) {
-      finishOperation(state, name, id, project.id, "error", errorMessage(error, "Operation failed"));
+      finishOperation(state, name, id, initialProject.id, "error", errorMessage(error, "Operation failed"));
     }
   }
 
