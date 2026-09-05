@@ -13,6 +13,7 @@ export function hydrateProjectAssets(view: ProjectView): ProjectView {
   return {
     ...view,
     spriteUrl: version(view.spriteUrl, view.updatedAt),
+    transparentReferencePreviewUrl: version(view.transparentReferencePreviewUrl, view.updatedAt),
     sourceVideoUrl: version(view.sourceVideoUrl, view.updatedAt),
     frames: view.frames.map((url) => version(url, view.framesUpdatedAt)!),
     styleGuides: view.styleGuides.map((guide) => ({

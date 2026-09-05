@@ -14,6 +14,7 @@ const view = vi.hoisted(() => ({
   motionModel: "video", paletteLock: false, hardAlphaEdges: false,
   preservedOffPalettePixels: null, removedLowAlphaPixels: null,
   removedChromaFringePixels: null, spriteUrl: null, spriteDimensions: null,
+  transparentReferencePreviewUrl: null,
   targetFrameSize: null, subjectFillPct: null, colorCount: null,
   subjectFillMeasured: null, frames: [], framesUpdatedAt: "2026-01-01T00:00:00Z",
   sourceVideoUrl: null,

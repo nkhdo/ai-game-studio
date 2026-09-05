@@ -151,6 +151,81 @@ export async function assessBackground(buffer: Buffer): Promise<BackgroundSuitab
   }
 }
 
+/** Build a display-only alpha preview by removing border-connected chroma pixels. */
+export async function createTransparentReferencePreview(source: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(source, { failOn: "error" })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+  const removed = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  let head = 0;
+  let tail = 0;
+  const isChroma = (pixel: number) => {
+    const offset = pixel * channels;
+    const dr = data[offset] - CHROMA.r;
+    const dg = data[offset + 1] - CHROMA.g;
+    const db = data[offset + 2] - CHROMA.b;
+    return Math.sqrt(dr * dr + dg * dg + db * db) <= 45;
+  };
+  const enqueue = (pixel: number) => {
+    if (removed[pixel] || !isChroma(pixel)) return;
+    removed[pixel] = 1;
+    queue[tail++] = pixel;
+  };
+  for (let x = 0; x < width; x++) {
+    enqueue(x);
+    enqueue((height - 1) * width + x);
+  }
+  for (let y = 1; y < height - 1; y++) {
+    enqueue(y * width);
+    enqueue(y * width + width - 1);
+  }
+  while (head < tail) {
+    const pixel = queue[head++];
+    const x = pixel % width;
+    const y = Math.floor(pixel / width);
+    if (x > 0) enqueue(pixel - 1);
+    if (x + 1 < width) enqueue(pixel + 1);
+    if (y > 0) enqueue(pixel - width);
+    if (y + 1 < height) enqueue(pixel + width);
+  }
+  for (let pixel = 0; pixel < removed.length; pixel++) {
+    if (removed[pixel]) data[pixel * channels + 3] = 0;
+  }
+  return sharp(data, { raw: { width, height, channels } }).png().toBuffer();
+}
+
+export async function regenerateTransparentReferencePreview(): Promise<string> {
+  const manifest = await readManifest(activeProjectId());
+  if (!manifest.sprite) throw new Error("Reference Sprite is required");
+  if (manifest.backgroundSuitability !== "suitable") {
+    throw new Error("Reference Sprite background is not suitable for a transparent preview");
+  }
+  const sourcePath = path.join(activeProjectDir(), manifest.sprite);
+  const previewPath = path.join(activeProjectDir(), PROJECT_FILES.transparentRefPreview);
+  ensureInsideRoot(sourcePath);
+  ensureInsideRoot(previewPath);
+  const preview = await createTransparentReferencePreview(await readFile(sourcePath));
+  await mkdir(path.dirname(previewPath), { recursive: true });
+  const temporaryPath = `${previewPath}.${randomUUID()}.tmp`;
+  ensureInsideRoot(temporaryPath);
+  try {
+    await writeFile(temporaryPath, preview);
+    await rename(temporaryPath, previewPath);
+  } finally {
+    await rm(temporaryPath, { force: true });
+  }
+  return PROJECT_FILES.transparentRefPreview;
+}
+
+export async function removeTransparentReferencePreview(): Promise<void> {
+  const previewPath = path.join(activeProjectDir(), PROJECT_FILES.transparentRefPreview);
+  ensureInsideRoot(previewPath);
+  await rm(previewPath, { force: true });
+}
+
 export async function normalizeReferenceImage(source: Buffer): Promise<NormalizedReferenceImage> {
   const metadata = await sharp(source, { failOn: "error" }).metadata();
   assertAllowedFormat(metadata.format);
@@ -306,6 +381,7 @@ export async function commitReferenceUpload(uploadId: string) {
   const refAbs = path.join(activeProjectDir(), PROJECT_FILES.ref);
   ensureInsideRoot(refAbs);
   await mkdir(path.dirname(refAbs), { recursive: true });
+  await removeTransparentReferencePreview();
   await rename(preparedImage(), refAbs);
   await wipeLatestMotionArtifacts();
   await wipeLatestAnimations();
@@ -335,6 +411,12 @@ export async function commitReferenceUpload(uploadId: string) {
     removedChromaFringePixels: null,
   });
   manifest = await pruneUnreferencedStyleGuides(manifest);
+  if (prepared.backgroundSuitability === "suitable") {
+    await regenerateTransparentReferencePreview().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn("[reference-preview] failed to generate:", message);
+    });
+  }
   return toView(manifest);
 }
 

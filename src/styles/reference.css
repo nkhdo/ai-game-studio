@@ -12,6 +12,43 @@
   font-weight: 500;
 }
 
+.preview__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preview__switch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-muted);
+}
+
+.preview__switch button {
+  padding: 4px 7px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.preview__switch button.is-active {
+  background: var(--card);
+  color: var(--text);
+}
+
+.preview__switch button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .preview__box {
   width: 100%;
   height: 260px;

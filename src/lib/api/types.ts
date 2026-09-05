@@ -25,6 +25,7 @@ export interface ProjectView {
   removedLowAlphaPixels: number | null;
   removedChromaFringePixels: number | null;
   spriteUrl: string | null;
+  transparentReferencePreviewUrl: string | null;
   spriteDimensions: { w: number; h: number } | null;
   targetFrameSize: { w: number; h: number } | null;
   subjectFillPct: number | null;

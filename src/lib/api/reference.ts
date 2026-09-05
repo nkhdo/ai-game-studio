@@ -5,7 +5,8 @@ export type StyleGuideMutation = ProjectMutation<Pick<ProjectView, "styleGuides"
 export type ReferenceMutation = ProjectMutation<Pick<ProjectView,
   "spritePrompt" | "spriteModel" | "styleGuides" | "styleGuidesChanged" |
   "spritePaletteLock" | "spriteAcquisition" | "spriteOriginalFilename" |
-  "backgroundSuitability" | "spriteUrl" | "spriteDimensions" | "targetFrameSize" |
+  "backgroundSuitability" | "spriteUrl" | "transparentReferencePreviewUrl" |
+  "spriteDimensions" | "targetFrameSize" |
   "subjectFillPct" | "colorCount" | "subjectFillMeasured" | "sourceVideoUrl" |
   "motionPrompt" | "motionModel" | "frames" | "framesUpdatedAt" | "animations" |
   "preservedOffPalettePixels" | "removedLowAlphaPixels" | "removedChromaFringePixels"
@@ -97,6 +98,12 @@ export function commitSpriteUpload(
 
 export function discardSpriteUpload(context: ProjectRequestContext): Promise<{ ok: boolean }> {
   return postJson("/api/sprites/upload/discard", {}, context);
+}
+
+export function regenerateTransparentReferencePreview(
+  context: ProjectRequestContext,
+): Promise<ProjectMutation<Pick<ProjectView, "transparentReferencePreviewUrl">>> {
+  return postJson("/api/sprites/transparent-preview", {}, context);
 }
 
 export function getImageModels(): Promise<ImageModelsResponse> {

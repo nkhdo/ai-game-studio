@@ -11,6 +11,7 @@ describe("Project asset hydration", () => {
       styleGuides: [],
       animations: [],
       spriteUrl: null,
+      transparentReferencePreviewUrl: null,
       sourceVideoUrl: null,
     } as unknown as ProjectView;
 
@@ -29,6 +30,7 @@ describe("Project asset hydration", () => {
       styleGuides: [],
       animations: [],
       spriteUrl: null,
+      transparentReferencePreviewUrl: null,
       sourceVideoUrl: null,
     } as unknown as ProjectView;
 

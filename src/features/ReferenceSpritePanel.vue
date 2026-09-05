@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { useStudio } from "../studio/context";
 import BaseButton from "../ui/BaseButton.vue";
 import BaseStatus from "../ui/BaseStatus.vue";
@@ -13,6 +13,13 @@ const styleOperation = computed(() => studio.state.operations.styleGuide);
 const imageModel = computed(() => studio.imageModels.find(({ id }) => id === studio.state.draft.spriteModel));
 const guideLimit = computed(() => Math.min(3, imageModel.value?.maxStyleGuideImages ?? 0));
 const busy = computed(() => operation.value.phase === "running");
+const previewView = ref<"transparent" | "source">("transparent");
+const previewUrl = computed(() =>
+  previewView.value === "transparent"
+    ? studio.state.project?.transparentReferencePreviewUrl ?? studio.state.project?.spriteUrl
+    : studio.state.project?.spriteUrl,
+);
+watch(() => studio.state.project?.spriteUrl, () => { previewView.value = "transparent"; });
 
 function addStyleGuides(event: Event) {
   const input = event.target as HTMLInputElement;
@@ -80,10 +87,20 @@ function addStyleGuides(event: Event) {
       <BaseStatus v-if="!studio.hasApiKey && studio.state.draft.spriteAcquisitionMode === 'generate'" message="OPENROUTER_API_KEY is missing. Upload still works without it." kind="error" />
       <BaseStatus :message="operation.message" :kind="operation.phase === 'error' ? 'error' : operation.phase === 'success' ? 'success' : 'info'" :busy="busy" />
       <div class="preview">
-        <div class="preview__label">Reference Sprite</div>
-        <div class="preview__box"><img v-if="studio.state.project?.spriteUrl" :src="studio.state.project.spriteUrl" alt="Reference Sprite" /><span v-else class="preview__placeholder">No sprite yet</span></div>
+        <div class="preview__header">
+          <div class="preview__label">Reference Sprite</div>
+          <div v-if="studio.state.project?.spriteUrl" class="preview__switch" role="group" aria-label="Reference Sprite view">
+            <button type="button" :class="{ 'is-active': previewView === 'transparent' }" :disabled="!studio.state.project.transparentReferencePreviewUrl" @click="previewView = 'transparent'">Transparent</button>
+            <button type="button" :class="{ 'is-active': previewView === 'source' }" @click="previewView = 'source'">Chroma source</button>
+          </div>
+        </div>
+        <div class="preview__box"><img v-if="previewUrl" :src="previewUrl" :alt="previewView === 'transparent' ? 'Transparent Reference Preview' : 'Reference Sprite chroma source'" /><span v-else class="preview__placeholder">No sprite yet</span></div>
         <div class="preview__caption">{{ studio.state.project?.spriteDimensions ? `${studio.state.project.spriteDimensions.w} × ${studio.state.project.spriteDimensions.h} px` : "—" }}</div>
         <div v-if="studio.state.project?.backgroundSuitability === 'warning'" class="background-warning">Background may not key cleanly. Use a flat #00b140 background.</div>
+        <div v-else-if="studio.state.project?.spriteUrl && !studio.state.project.transparentReferencePreviewUrl" class="background-warning">
+          Transparent preview is unavailable.
+          <BaseButton variant="link" :busy="busy" @click="studio.actions.regenerateTransparentReferencePreview">Regenerate transparent preview</BaseButton>
+        </div>
       </div>
     </div>
   </section>

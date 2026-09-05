@@ -8,6 +8,7 @@ export interface StudioActions {
   uploadReference(files: File[]): Promise<void>;
   addStyleGuides(files: File[]): Promise<void>;
   removeStyleGuide(id: string): Promise<void>;
+  regenerateTransparentReferencePreview(): Promise<void>;
   generateVideo(): Promise<void>;
   generateFrames(): Promise<void>;
   toggleFrame(index: number): void;

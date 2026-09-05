@@ -40,6 +40,10 @@ _Avoid_: Source type, image type
 A heuristic assessment of whether a Reference Sprite's outer background is sufficiently uniform and close to the studio's chroma green for reliable movement-frame extraction. It is advisory rather than a guarantee.
 _Avoid_: Background validity, chroma validation
 
+**Transparent Reference Preview**:
+A regenerable, non-authoritative transparent derivative of the Reference Sprite used for display and optional download. It has the same dimensions and subject geometry as the Reference Sprite and is never an input to movement generation.
+_Avoid_: Transparent Reference Sprite, transparent source, alpha source
+
 **Downstream Artifacts**:
 Movement Frames, Animations, spritesheets, and animated previews derived from the current Reference Sprite.
 _Avoid_: Outputs when specifically referring to derived project artifacts

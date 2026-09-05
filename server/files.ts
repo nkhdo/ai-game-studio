@@ -11,6 +11,7 @@ const projectContext = new AsyncLocalStorage<string>();
 export const PROJECT_FILES = {
   manifest: "sprite.json",
   ref: "ref/sprite.png",
+  transparentRefPreview: "ref/transparent-preview.png",
   source: "source.mp4",
   styleGuidesDir: "style-guides",
   framesDir: "frames",

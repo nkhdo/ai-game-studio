@@ -114,6 +114,7 @@ export interface ProjectView {
   removedLowAlphaPixels: number | null;
   removedChromaFringePixels: number | null;
   spriteUrl: string | null;
+  transparentReferencePreviewUrl: string | null;
   spriteDimensions: { w: number; h: number } | null;
   targetFrameSize: { w: number; h: number } | null;
   subjectFillPct: number | null;
@@ -299,6 +300,10 @@ export function toView(m: ProjectManifest): ProjectView {
     removedLowAlphaPixels: m.removedLowAlphaPixels,
     removedChromaFringePixels: m.removedChromaFringePixels,
     spriteUrl: m.sprite ? base + m.sprite : null,
+    transparentReferencePreviewUrl:
+      m.sprite && existsSync(path.join(projectDir(m.id), PROJECT_FILES.transparentRefPreview))
+        ? base + PROJECT_FILES.transparentRefPreview
+        : null,
     spriteDimensions: m.spriteDimensions,
     targetFrameSize: m.targetFrameSize ?? null,
     subjectFillPct: m.subjectFillPct ?? null,

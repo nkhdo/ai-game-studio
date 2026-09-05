@@ -4,9 +4,32 @@ import sharp from "sharp";
 import {
   applyTargetGeometry,
   assessBackground,
+  createTransparentReferencePreview,
   normalizeReferenceImage,
   parseTargetGeometry,
 } from "./reference-sprite.js";
+
+test("transparent preview removes only border-connected chroma", async () => {
+  const redRing = await sharp({
+    create: { width: 3, height: 3, channels: 3, background: { r: 200, g: 30, b: 30 } },
+  }).composite([{
+    input: await sharp({
+      create: { width: 1, height: 1, channels: 3, background: { r: 0, g: 177, b: 64 } },
+    }).png().toBuffer(),
+    left: 1,
+    top: 1,
+  }]).png().toBuffer();
+  const source = await sharp({
+    create: { width: 5, height: 5, channels: 3, background: { r: 0, g: 177, b: 64 } },
+  }).composite([{ input: redRing, left: 1, top: 1 }]).png().toBuffer();
+  const result = await createTransparentReferencePreview(source);
+  const { data, info } = await sharp(result).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+
+  assert.equal(info.width, 5);
+  assert.equal(info.height, 5);
+  assert.equal(data[3], 0);
+  assert.equal(data[(2 * 5 + 2) * 4 + 3], 255);
+});
 
 test("recognizes a uniform chroma-green border as suitable", async () => {
   const image = await sharp({

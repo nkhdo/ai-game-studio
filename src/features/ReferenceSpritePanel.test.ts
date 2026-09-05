@@ -17,7 +17,8 @@ function project(): ProjectView {
     backgroundSuitability: "unknown", motionPrompt: "", motionModel: "video",
     paletteLock: false, hardAlphaEdges: false, preservedOffPalettePixels: null,
     removedLowAlphaPixels: null, removedChromaFringePixels: null,
-    spriteUrl: null, spriteDimensions: null, targetFrameSize: null,
+    spriteUrl: null, transparentReferencePreviewUrl: null,
+    spriteDimensions: null, targetFrameSize: null,
     subjectFillPct: null, colorCount: null, subjectFillMeasured: null,
     frames: [], framesUpdatedAt: "", sourceVideoUrl: null,
     animations: [], updatedAt: "",
@@ -25,6 +26,28 @@ function project(): ProjectView {
 }
 
 describe("ReferenceSpritePanel", () => {
+  it("defaults to the transparent derivative and can reveal the chroma source", async () => {
+    const state = createStudioState();
+    const view = project();
+    view.spriteUrl = "/source.png";
+    view.transparentReferencePreviewUrl = "/transparent.png";
+    view.spriteDimensions = { w: 128, h: 128 };
+    view.backgroundSuitability = "suitable";
+    reconcileProject(state, view);
+    const context = reactive({
+      state,
+      imageModels: [], videoModels: [], projects: [], activePanel: "reference", hasApiKey: true,
+      actions: { setPanel: vi.fn(), regenerateTransparentReferencePreview: vi.fn() },
+    }) as unknown as StudioContext;
+    const wrapper = mount(ReferenceSpritePanel, {
+      global: { provide: { [studioKey as symbol]: context } },
+    });
+
+    expect(wrapper.get(".preview__box img").attributes("src")).toBe("/transparent.png");
+    await wrapper.get(".preview__switch button:last-child").trigger("click");
+    expect(wrapper.get(".preview__box img").attributes("src")).toBe("/source.png");
+  });
+
   it("binds prompt edits to the domain draft and submits through its action", async () => {
     const state = createStudioState();
     reconcileProject(state, project());
@@ -42,6 +65,7 @@ describe("ReferenceSpritePanel", () => {
         uploadReference: vi.fn(),
         addStyleGuides: vi.fn(),
         removeStyleGuide: vi.fn(),
+        regenerateTransparentReferencePreview: vi.fn(),
       },
     }) as unknown as StudioContext;
     const wrapper = mount(ReferenceSpritePanel, {
@@ -62,7 +86,7 @@ describe("ReferenceSpritePanel", () => {
       state,
       imageModels: [{ id: "image", label: "Image", maxStyleGuideImages: 3, sizeStrategy: "target-size" }],
       videoModels: [], projects: [], activePanel: "reference", hasApiKey: true,
-      actions: { setPanel: vi.fn(), addStyleGuides: vi.fn(), removeStyleGuide: vi.fn() },
+      actions: { setPanel: vi.fn(), addStyleGuides: vi.fn(), removeStyleGuide: vi.fn(), regenerateTransparentReferencePreview: vi.fn() },
     }) as unknown as StudioContext;
     const wrapper = mount(ReferenceSpritePanel, {
       global: { provide: { [studioKey as symbol]: context } },
@@ -79,7 +103,7 @@ describe("ReferenceSpritePanel", () => {
       state,
       imageModels: [{ id: "image", label: "Image", maxStyleGuideImages: 3, sizeStrategy: "target-size" }],
       videoModels: [], projects: [], activePanel: "reference", hasApiKey: true,
-      actions: { setPanel: vi.fn(), addStyleGuides: vi.fn(), removeStyleGuide: vi.fn() },
+      actions: { setPanel: vi.fn(), addStyleGuides: vi.fn(), removeStyleGuide: vi.fn(), regenerateTransparentReferencePreview: vi.fn() },
     }) as unknown as StudioContext;
     const wrapper = mount(ReferenceSpritePanel, {
       global: { provide: { [studioKey as symbol]: context } },

@@ -62,6 +62,8 @@ import {
   prepareReferenceUpload,
   applyTargetGeometry,
   parseTargetGeometry,
+  regenerateTransparentReferencePreview,
+  removeTransparentReferencePreview,
 } from "./reference-sprite.js";
 import { conformToReferencePalette, dataUrlToBuffer } from "./palette-lock.js";
 import { createAnimation, deleteAnimation, updateAnimation } from "./animations.js";
@@ -82,7 +84,8 @@ const STYLE_GUIDE_FIELDS = ["styleGuides", "styleGuidesChanged"] as const;
 const REFERENCE_FIELDS = [
   "spritePrompt", "spriteModel", "styleGuides", "styleGuidesChanged",
   "spritePaletteLock", "spriteAcquisition", "spriteOriginalFilename",
-  "backgroundSuitability", "spriteUrl", "spriteDimensions", "targetFrameSize",
+  "backgroundSuitability", "spriteUrl", "transparentReferencePreviewUrl",
+  "spriteDimensions", "targetFrameSize",
   "subjectFillPct", "colorCount", "subjectFillMeasured", "sourceVideoUrl",
   "motionPrompt", "motionModel", "frames", "framesUpdatedAt", "animations",
   "preservedOffPalettePixels", "removedLowAlphaPixels", "removedChromaFringePixels",
@@ -179,7 +182,13 @@ app.get("/api/models/image", (_req, res) => {
 
 app.get("/api/projects/:id", async (req, res) => {
   try {
-    res.json(await getProject(req.params.id));
+    let view = await getProject(req.params.id);
+    if (view.spriteUrl && view.backgroundSuitability === "suitable" &&
+        !view.transparentReferencePreviewUrl) {
+      await runInProject(view.id, () => regenerateTransparentReferencePreview()).catch(() => undefined);
+      view = await getProject(view.id);
+    }
+    res.json(view);
   } catch (err) {
     handleError(err, res);
   }
@@ -345,6 +354,7 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
     // A replacement sprite invalidates its video and every downstream artifact.
     await wipeLatestMotionArtifacts();
     await wipeLatestAnimations();
+    await removeTransparentReferencePreview();
 
     const refAbs = path.join(activeProjectDir(), PROJECT_FILES.ref);
     await saveBase64Image(base64, refAbs);
@@ -375,6 +385,12 @@ app.post("/api/sprites/generate", requireKey, async (req, res) => {
       removedChromaFringePixels: null,
     });
     m = await pruneUnreferencedStyleGuides(m);
+    if (applied.backgroundSuitability === "suitable") {
+      await regenerateTransparentReferencePreview().catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn("[reference-preview] failed to generate:", message);
+      });
+    }
 
     res.json({
       mutation: toMutation(toView(m), REFERENCE_FIELDS),
@@ -418,6 +434,16 @@ app.post("/api/sprites/upload/discard", async (_req, res) => {
   try {
     await discardPreparedUpload();
     res.json({ ok: true });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+app.post("/api/sprites/transparent-preview", async (_req, res) => {
+  try {
+    await regenerateTransparentReferencePreview();
+    const manifest = await readManifest(activeProjectId());
+    res.json(toMutation(toView(manifest), ["transparentReferencePreviewUrl"]));
   } catch (err) {
     handleError(err, res);
   }

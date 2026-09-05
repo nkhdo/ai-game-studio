@@ -73,6 +73,16 @@ export function createReferenceActions(env: WorkflowEnvironment) {
       }
     },
 
+    async regenerateTransparentReferencePreview() {
+      await run(
+        "reference",
+        "Generating transparent preview…",
+        (project) => dependencies.server.regenerateTransparentReferencePreview(requestContext(project)),
+        "Transparent preview ready.",
+        { preserveDraft: true },
+      );
+    },
+
     async addStyleGuides(files: File[]) {
       const available = Math.max(0, 3 - (state.project?.styleGuides.length ?? 0));
       const invalid = validateImages(files, available);
