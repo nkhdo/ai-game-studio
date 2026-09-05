@@ -1,18 +1,17 @@
 import { computed, reactive, watch } from "vue";
 import type { RouteLocationNormalizedLoaded, Router } from "vue-router";
 import type { ProjectMutation, ProjectView } from "../lib/api";
-import { routeAnimation, routePanel, type LeftPanel } from "../router";
+import type { LeftPanel } from "../router";
 import type { StudioContext } from "./context";
 import type { StudioDependencies } from "./dependencies";
 import { toServerDraft } from "./draft-persistence";
 import { DraftSynchronizer } from "./draft-sync";
 import { hydrateProjectAssets } from "./project-view";
+import { installStudioLifecycle } from "./lifecycle";
 import {
   beginOperation,
   createStudioState,
-  editAnimation,
   finishOperation,
-  newAnimationDraft,
   reconcileProject,
   useStudioProjections,
 } from "./state";
@@ -167,90 +166,8 @@ export function createStudioController(
     { deep: true },
   );
 
-  router.beforeEach(async (to) => {
-    const target = typeof to.params.projectId === "string" ? to.params.projectId : null;
-    if (!state.project || !target || target === state.project.id) return true;
-    try {
-      await sync.flush();
-      return true;
-    } catch {
-      return false;
-    }
-  });
-
-  watch(
-    () => route.params.projectId,
-    async (value) => {
-      if (!context.ready || typeof value !== "string" || value === state.project?.id) return;
-      try {
-        apply(await dependencies.server.getProject(value));
-        await refreshProjects();
-      } catch {
-        const fallback = context.projects[0]
-          ? await dependencies.server.getProject(context.projects[0].id)
-          : await dependencies.server.createProject();
-        await openProject(fallback);
-      }
-    },
-  );
-
-  watch(
-    () => [route.query.panel, route.query.animation],
-    () => {
-      context.activePanel = routePanel(route);
-      const id = routeAnimation(route);
-      const animation = state.project?.animations.find((candidate) => candidate.id === id);
-      if (animation && state.animationDraft.activeAnimationId !== id) editAnimation(state, animation);
-      if (id && !animation) {
-        newAnimationDraft(state);
-        void router.replace({
-          name: "project",
-          params: { projectId: state.project?.id },
-          query: { panel: context.activePanel },
-        });
-      }
-    },
-  );
-
-  void Promise.all([
-    dependencies.server.checkHealth(),
-    dependencies.server.listProjects(),
-    dependencies.server.getImageModels(),
-    dependencies.server.getVideoModels(),
-  ]).then(async ([health, projects, images, videos]) => {
-    context.hasApiKey = health.hasApiKey;
-    context.projects = projects;
-    context.imageModels = [...images.models];
-    context.videoModels = [...videos.models];
-    const requested = typeof route.params.projectId === "string" ? route.params.projectId : null;
-    let view: ProjectView;
-    try {
-      view = requested
-        ? await dependencies.server.getProject(requested)
-        : projects[0]
-          ? await dependencies.server.getProject(projects[0].id)
-          : await dependencies.server.createProject();
-    } catch {
-      view = projects[0]
-        ? await dependencies.server.getProject(projects[0].id)
-        : await dependencies.server.createProject();
-    }
-    apply(view);
-    context.activePanel = routePanel(route);
-    const animationId = routeAnimation(route);
-    const animation = view.animations.find(({ id }) => id === animationId);
-    if (animation) editAnimation(state, animation);
-    await router.replace({
-      name: "project",
-      params: { projectId: view.id },
-      query: {
-        panel: context.activePanel,
-        ...(animation ? { animation: animation.id } : {}),
-      },
-    });
-    context.ready = true;
-  }).catch((error) => {
-    context.bootError = errorMessage(error, "Backend not reachable.");
+  installStudioLifecycle({
+    router, route, state, context, dependencies, sync, apply, openProject, refreshProjects,
   });
 
   return context;

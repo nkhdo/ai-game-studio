@@ -18,7 +18,7 @@
   align-items: center;
   justify-content: center;
   background:
-    repeating-conic-gradient(#f9fafb 0% 25%, #ffffff 0% 50%) 0 0 / 14px 14px;
+    repeating-conic-gradient(var(--surface-subtle) 0% 25%, var(--card) 0% 50%) 0 0 / 14px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 8px;
@@ -126,9 +126,9 @@
   align-items: center;
   gap: 4px;
   padding: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid var(--overlay-border);
   border-radius: 7px;
-  background: rgba(17, 24, 39, 0.82);
+  background: var(--overlay);
   box-shadow: var(--shadow-sm);
   backdrop-filter: blur(4px);
   box-sizing: border-box;
@@ -151,7 +151,7 @@
   padding: 0 7px;
   border: 0;
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--overlay-hover);
   color: white;
   cursor: pointer;
   font-size: 12px;
@@ -168,7 +168,7 @@
 }
 
 .quick-preview__action:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--overlay-active);
 }
 
 .quick-preview__action:disabled {
@@ -217,7 +217,7 @@
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: #f9fafb;
+  background: var(--surface-subtle);
 }
 
 .animation-row.is-active {

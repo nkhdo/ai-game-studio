@@ -25,22 +25,63 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
 <template>
   <section class="card">
     <h2 class="card__title">Animations</h2>
-    <div class="panel-body"><div class="animation-workspace">
+    <div class="panel-body">
+      <div class="animation-workspace">
       <aside class="animations-library" aria-label="Saved Animations">
         <div class="gif-section__label">Saved Animations</div>
         <div class="animations-list">
-          <div v-if="!studio.state.project?.animations.length" class="gif-preview__placeholder">No saved Animations yet</div>
-          <div v-for="animation in studio.state.project?.animations" :key="animation.id" class="animation-row" :class="{ 'is-active': animation.id === studio.state.animationDraft.activeAnimationId }">
-            <div class="animation-row__title">{{ animation.name }}</div><div class="animation-row__meta">{{ animation.frameUrls.length }} frames · {{ animation.fps }} FPS</div>
-            <div class="animation-row__actions"><button class="btn btn--link btn--sm" type="button" @click="studio.actions.activateAnimation(animation.id)">Edit</button><button class="btn btn--link btn--sm" type="button" @click="studio.actions.exportAnimation(animation.id)">Export</button><button class="btn btn--link btn--sm" type="button" @click="studio.actions.deleteAnimation(animation.id)">Delete</button></div>
+          <div v-if="!studio.state.project?.animations.length" class="gif-preview__placeholder">
+            No saved Animations yet
+          </div>
+          <div
+            v-for="animation in studio.state.project?.animations"
+            :key="animation.id"
+            class="animation-row"
+            :class="{ 'is-active': animation.id === studio.state.animationDraft.activeAnimationId }"
+          >
+            <div class="animation-row__title">{{ animation.name }}</div>
+            <div class="animation-row__meta">
+              {{ animation.frameUrls.length }} frames · {{ animation.fps }} FPS
+            </div>
+            <div class="animation-row__actions">
+              <button class="btn btn--link btn--sm" type="button" @click="studio.actions.activateAnimation(animation.id)">Edit</button>
+              <button class="btn btn--link btn--sm" type="button" @click="studio.actions.exportAnimation(animation.id)">Export</button>
+              <button class="btn btn--link btn--sm" type="button" @click="studio.actions.deleteAnimation(animation.id)">Delete</button>
+            </div>
           </div>
         </div>
       </aside>
       <div class="animation-edit-pane">
-        <div class="frames-section"><div class="frames-section__header"><div class="frames-section__label">Select frames for this Animation</div><div class="frames-section__actions"><button class="btn btn--link btn--sm" type="button" @click="studio.actions.selectAll">Select All</button><button class="btn btn--link btn--sm" type="button" @click="studio.actions.selectNone">Deselect All</button></div></div>
+        <div class="frames-section">
+          <div class="frames-section__header">
+            <div class="frames-section__label">Select frames for this Animation</div>
+            <div class="frames-section__actions">
+              <button class="btn btn--link btn--sm" type="button" @click="studio.actions.selectAll">Select All</button>
+              <button class="btn btn--link btn--sm" type="button" @click="studio.actions.selectNone">Deselect All</button>
+            </div>
+          </div>
           <div class="frames-grid">
-            <button v-for="(frame,index) in studio.state.project?.frames" :key="frame" class="frame-tile" :class="{ 'is-selected': studio.state.animationDraft.frameSequence.includes(index) }" type="button" :aria-pressed="studio.state.animationDraft.frameSequence.includes(index)" @click="studio.actions.toggleFrame(index)"><div class="frame-tile__num">{{ index + 1 }}</div><img :src="frame" :alt="`Frame ${index + 1}`" /></button>
-            <button v-for="index in studio.state.project?.frames.length ? 0 : 8" :key="`empty-${index}`" class="frame-tile is-empty" type="button" disabled><div class="frame-tile__num">{{ index }}</div></button>
+            <button
+              v-for="(frame, index) in studio.state.project?.frames"
+              :key="frame"
+              class="frame-tile"
+              :class="{ 'is-selected': studio.state.animationDraft.frameSequence.includes(index) }"
+              type="button"
+              :aria-pressed="studio.state.animationDraft.frameSequence.includes(index)"
+              @click="studio.actions.toggleFrame(index)"
+            >
+              <div class="frame-tile__num">{{ index + 1 }}</div>
+              <img :src="frame" :alt="`Frame ${index + 1}`">
+            </button>
+            <button
+              v-for="index in studio.state.project?.frames.length ? 0 : 8"
+              :key="`empty-${index}`"
+              class="frame-tile is-empty"
+              type="button"
+              disabled
+            >
+              <div class="frame-tile__num">{{ index }}</div>
+            </button>
           </div>
         </div>
         <div class="animation-editor">
@@ -50,6 +91,7 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
           <div class="animation-editor__actions"><BaseButton variant="primary" :busy="operation.phase === 'running'" :disabled="!frames.length" @click="studio.actions.saveAnimation(false)">Save as New</BaseButton><BaseButton :disabled="!studio.state.animationDraft.activeAnimationId" @click="studio.actions.saveAnimation(true)">Update</BaseButton><BaseButton variant="link" @click="studio.actions.activateAnimation(null)">New Draft</BaseButton><BaseStatus :message="operation.message" :kind="operation.phase === 'error' ? 'error' : operation.phase === 'success' ? 'success' : 'info'" /></div>
         </div>
       </div>
-    </div></div>
+      </div>
+    </div>
   </section>
 </template>

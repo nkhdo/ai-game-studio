@@ -123,7 +123,7 @@
   cursor: pointer;
 }
 
-.load-menu__create:hover { background: #f3f4f6; }
+.load-menu__create:hover { background: var(--surface-muted); }
 .load-menu__separator { height: 1px; margin: 4px; background: var(--border); }
 
 .load-menu__row {
@@ -134,15 +134,15 @@
 }
 
 .load-menu__row:hover {
-  background: #f3f4f6;
+  background: var(--surface-muted);
 }
 
 .load-menu__row.is-current {
-  background: #eef2ff;
+  background: var(--primary-selection);
 }
 
 .load-menu__row.is-current:hover {
-  background: #e0e7ff;
+  background: var(--primary-selection-hover);
 }
 
 .load-menu__item {
@@ -204,7 +204,7 @@
   color: var(--text-subtle);
 }
 
-.load-menu__rename:hover { background: #eef2ff; color: var(--primary); }
+.load-menu__rename:hover { background: var(--primary-selection); color: var(--primary); }
 
 .save-indicator {
   border: 0;
@@ -217,7 +217,7 @@
 .save-indicator:not(:disabled) { cursor: pointer; }
 
 .load-menu__delete:hover {
-  background: #fee2e2;
+  background: var(--danger-soft);
   color: var(--danger);
 }
 

@@ -17,7 +17,7 @@ function context(): StudioContext {
     state,
     imageModels: [],
     videoModels: [],
-    projects: [],
+    projects: [{ id: "one", label: "Ladybug boss", createdAt: "", updatedAt: "" }],
     activePanel: "reference",
     hasApiKey: true,
     actions: { retrySave: vi.fn() },
@@ -62,5 +62,32 @@ describe("ProjectHeader", () => {
         brand.get(".save-indicator").element,
       ) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("supports keyboard menu navigation and Escape focus return", async () => {
+    const wrapper = mount(ProjectHeader, {
+      attachTo: document.body,
+      global: { provide: { [studioKey as symbol]: context() } },
+    });
+    const trigger = wrapper.get<HTMLButtonElement>("[data-project-select]");
+    await trigger.trigger("keydown", { key: "ArrowDown" });
+    expect(wrapper.get(".load-menu").classes()).toContain("is-open");
+    expect(document.activeElement?.getAttribute("role")).toBe("menuitem");
+    await wrapper.get(".load-menu").trigger("keydown", { key: "Escape" });
+    expect(wrapper.get(".load-menu").classes()).not.toContain("is-open");
+    expect(document.activeElement).toBe(trigger.element);
+    wrapper.unmount();
+  });
+
+  it("closes the Project menu after an outside pointer action", async () => {
+    const wrapper = mount(ProjectHeader, {
+      attachTo: document.body,
+      global: { provide: { [studioKey as symbol]: context() } },
+    });
+    await wrapper.get("[data-project-select]").trigger("click");
+    document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get(".load-menu").classes()).not.toContain("is-open");
+    wrapper.unmount();
   });
 });
