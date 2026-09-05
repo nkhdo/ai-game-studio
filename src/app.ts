@@ -1511,6 +1511,8 @@ function renderShell(): string {
                   <option value="128">128 × 128</option>
                   <option value="192">192 × 192</option>
                   <option value="256">256 × 256</option>
+                  <option value="384">384 × 384</option>
+                  <option value="512">512 × 512</option>
                 </select>
               </div>
               <div class="field">

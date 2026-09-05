@@ -5,7 +5,7 @@ import { generateSpriteImage, IMAGE_MODELS } from "./image.js";
 const PNG_SIGNATURE_BASE64 = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).toString(
   "base64",
 );
-const FRAME_SIZES = [32, 64, 128, 192, 256] as const;
+const FRAME_SIZES = [32, 64, 128, 192, 256, 384, 512] as const;
 
 function mockImageFetch(t: TestContext): Array<Record<string, unknown>> {
   const originalFetch = globalThis.fetch;
