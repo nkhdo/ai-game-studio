@@ -1,0 +1,244 @@
+/* ---------- App shell ---------- */
+.app {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 28px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-header__logo {
+  display: grid;
+  grid-template-columns: repeat(3, 4px);
+  grid-template-rows: repeat(3, 4px);
+  gap: 2px;
+}
+
+.app-header__logo span {
+  width: 4px;
+  height: 4px;
+  background: var(--accent-dark);
+  border-radius: 1px;
+}
+
+.app-header__title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.btn--sm {
+  padding: 6px 10px;
+  font-size: 12px;
+  gap: 6px;
+}
+
+/* ---------- Load menu (dropdown) ---------- */
+.load-menu-wrap {
+  position: relative;
+}
+
+.project-select {
+  min-width: 0;
+}
+
+.project-select__label {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-select__chevron {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  transition: transform 140ms ease;
+}
+
+.project-select__chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.load-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: 4px;
+  z-index: 20;
+  display: none;
+}
+
+.load-menu.is-open {
+  display: block;
+}
+
+.load-menu__empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.load-menu__create {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.load-menu__create:hover { background: #f3f4f6; }
+.load-menu__separator { height: 1px; margin: 4px; background: var(--border); }
+
+.load-menu__row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 6px;
+}
+
+.load-menu__row:hover {
+  background: #f3f4f6;
+}
+
+.load-menu__row.is-current {
+  background: #eef2ff;
+}
+
+.load-menu__row.is-current:hover {
+  background: #e0e7ff;
+}
+
+.load-menu__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.load-menu__item:hover {
+  background: transparent;
+}
+
+.load-menu__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.iconify-inline {
+  width: 1em;
+  height: 1em;
+  flex: none;
+}
+
+.load-menu__time {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.load-menu__delete,
+.load-menu__rename {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.load-menu__rename {
+  color: var(--text-subtle);
+}
+
+.load-menu__rename:hover { background: #eef2ff; color: var(--primary); }
+
+.save-indicator {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+}
+
+.save-indicator:not(:disabled) { cursor: pointer; }
+
+.load-menu__delete:hover {
+  background: #fee2e2;
+  color: var(--danger);
+}
+
+.app-main {
+  padding: 24px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 400px) minmax(0, 1fr);
+  gap: 20px;
+  height: 100%;
+  min-height: 0;
+}
+
+@media (max-width: 1024px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+}

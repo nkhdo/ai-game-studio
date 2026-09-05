@@ -1,0 +1,236 @@
+/* ---------- Animation preview ---------- */
+.gif-section {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gif-section__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.gif-preview {
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    repeating-conic-gradient(#f9fafb 0% 25%, #ffffff 0% 50%) 0 0 / 14px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  overflow: hidden;
+}
+
+.gif-preview img {
+  max-height: 100%;
+  max-width: 100%;
+  image-rendering: pixelated;
+}
+
+.gif-preview__placeholder {
+  color: var(--text-subtle);
+  font-size: 11px;
+  text-align: center;
+}
+
+.animation-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.animation-workspace {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.animation-edit-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.animation-editor__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px;
+  gap: 10px;
+}
+
+.animation-editor__actions,
+.animation-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.animation-editor__actions .status {
+  margin-left: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.quick-preview {
+  position: relative;
+  height: 220px;
+  padding: 0;
+}
+
+.quick-preview__stage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.quick-preview__stage img {
+  width: min(100%, 260px);
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  transform-origin: center;
+  transition: transform 120ms ease;
+}
+
+.quick-preview__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quick-preview__title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.quick-preview__overlay {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 7px;
+  background: rgba(17, 24, 39, 0.82);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(4px);
+  box-sizing: border-box;
+  max-width: calc(100% - 16px);
+}
+
+.quick-preview__position {
+  width: 64px;
+  flex: 0 0 64px;
+  padding: 0 4px;
+  color: white;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.quick-preview__action {
+  height: 26px;
+  width: 28px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.quick-preview__action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.quick-preview__action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.quick-preview__zoom {
+  width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+
+.quick-preview__play {
+  width: 52px;
+}
+
+.quick-preview__count {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.animations-library {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  padding-right: 16px;
+  border-right: 1px solid var(--border);
+}
+
+.animations-list {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+@media (max-width: 1100px) {
+  .animation-workspace {
+    grid-template-columns: minmax(160px, 190px) minmax(0, 1fr);
+  }
+}
+
+.animation-row {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #f9fafb;
+}
+
+.animation-row.is-active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.animation-row__title {
+  font-weight: 600;
+}
+
+.animation-row__meta {
+  margin: 2px 0 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
