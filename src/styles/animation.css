@@ -63,6 +63,10 @@
   overflow: hidden;
 }
 
+.animation-edit-pane.is-preview-expanded > .frames-section {
+  display: none;
+}
+
 .animation-row__actions {
   display: flex;
   flex-wrap: wrap;
@@ -174,7 +178,18 @@
 }
 
 .quick-preview__controls {
+  gap: 7px;
+}
+
+.quick-preview__control-group {
+  display: flex;
+  align-items: center;
   gap: 4px;
+}
+
+.quick-preview__control-group + .quick-preview__control-group {
+  padding-left: 7px;
+  border-left: 1px solid var(--overlay-border);
 }
 
 .animation-save-split .btn {
@@ -236,10 +251,6 @@
 .quick-preview__zoom {
   width: 52px;
   font-variant-numeric: tabular-nums;
-}
-
-.quick-preview__play {
-  width: 52px;
 }
 
 .quick-preview__count {

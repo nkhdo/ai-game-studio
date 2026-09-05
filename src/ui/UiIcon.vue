@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ name: "plus" | "minus" | "play" | "pause" | "previous" | "next" | "chevron-down" | "edit" | "trash" }>();
+defineProps<{ name: "plus" | "minus" | "play" | "pause" | "previous" | "next" | "expand" | "collapse" | "chevron-down" | "edit" | "trash" }>();
 </script>
 
 <template>
@@ -41,6 +41,24 @@ defineProps<{ name: "plus" | "minus" | "play" | "pause" | "previous" | "next" | 
       v-else-if="name === 'next'"
       d="m5.5 3.5 6 4.5-6 4.5z"
       fill="currentColor"
+    />
+    <path
+      v-else-if="name === 'expand'"
+      d="M6 3H3v3m7-3h3v3M6 13H3v-3m7 3h3v-3"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      v-else-if="name === 'collapse'"
+      d="M3 6h3V3m7 3h-3V3M3 10h3v3m7-3h-3v3"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
     />
     <path
       v-else-if="name === 'chevron-down'"
