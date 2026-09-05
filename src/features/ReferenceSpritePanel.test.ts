@@ -52,4 +52,23 @@ describe("ReferenceSpritePanel", () => {
     await wrapper.get("button.btn--primary").trigger("click");
     expect(generateReference).toHaveBeenCalledOnce();
   });
+
+  it("renders Style Guide Images beside a compact add button", () => {
+    const state = createStudioState();
+    const view = project();
+    view.styleGuides = [{ id: "guide", originalFilename: "guide.png", url: "/guide.png" }];
+    reconcileProject(state, view);
+    const context = reactive({
+      state,
+      imageModels: [{ id: "image", label: "Image", maxStyleGuideImages: 3, sizeStrategy: "target-size" }],
+      videoModels: [], projects: [], activePanel: "reference", hasApiKey: true,
+      actions: { setPanel: vi.fn(), addStyleGuides: vi.fn(), removeStyleGuide: vi.fn() },
+    }) as unknown as StudioContext;
+    const wrapper = mount(ReferenceSpritePanel, {
+      global: { provide: { [studioKey as symbol]: context } },
+    });
+    expect(wrapper.find(".style-guide-dropzone").exists()).toBe(false);
+    expect(wrapper.findAll(".style-guide-thumb")).toHaveLength(1);
+    expect(wrapper.get(".style-guide-add input[type='file']").attributes("multiple")).toBeDefined();
+  });
 });
