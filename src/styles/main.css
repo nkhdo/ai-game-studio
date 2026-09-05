@@ -1174,10 +1174,13 @@ button {
   background: rgba(17, 24, 39, 0.82);
   box-shadow: var(--shadow-sm);
   backdrop-filter: blur(4px);
+  box-sizing: border-box;
+  max-width: calc(100% - 16px);
 }
 
 .quick-preview__position {
   width: 64px;
+  flex: 0 0 64px;
   padding: 0 4px;
   color: white;
   font-size: 11px;
@@ -1195,6 +1198,16 @@ button {
   color: white;
   cursor: pointer;
   font-size: 12px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 .quick-preview__action:hover:not(:disabled) {
