@@ -238,7 +238,7 @@ describe("AnimationWorkspace", () => {
     expect(groups).toHaveLength(4);
     expect(groups.map((group) => group.findAll("button").map((button) => button.attributes("aria-label")))).toEqual([
       ["Play preview"],
-      ["Zoom in", "Reset zoom", "Zoom out"],
+      ["Zoom out", "Reset zoom", "Zoom in"],
       ["Previous frame", "Next frame"],
       ["Expand preview"],
     ]);

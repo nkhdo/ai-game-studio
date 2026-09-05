@@ -23,7 +23,7 @@ export function createAnimationActions(env: WorkflowEnvironment) {
       const frames = currentFrames();
       const name = state.draft.animationName.trim();
       if (!name || frames.length === 0 || !state.project?.targetFrameSize) {
-        state.operations.animation = { ...state.operations.animation, phase: "error" as const, message: "Choose frames and enter an Animation name." };
+        env.notify("Choose frames and enter an Animation name.");
         return;
       }
       const sheet = await composeSpritesheet({
@@ -41,7 +41,7 @@ export function createAnimationActions(env: WorkflowEnvironment) {
           ? dependencies.server.updateAnimation(
             requestContext(project), state.animationDraft.activeAnimationId, input)
           : dependencies.server.createAnimation(requestContext(project), input),
-        update ? "Animation updated." : "Animation saved.");
+        update ? "Animation updated." : "Animation saved.", { toastError: true });
       const saved = state.project?.animations.find((animation) => animation.name === name);
       if (saved) await env.setPanel(context.activePanel, saved.id);
       if (saved) editAnimation(state, saved);
@@ -51,7 +51,7 @@ export function createAnimationActions(env: WorkflowEnvironment) {
       if (!await dependencies.confirmation.confirm("Delete this Animation?")) return;
       await run("animation", "Deleting Animation…",
         (project) => dependencies.server.deleteAnimation(requestContext(project), id),
-        "Animation deleted.");
+        "Animation deleted.", { toastError: true });
       if (state.animationDraft.activeAnimationId === id) newAnimationDraft(state);
     },
 

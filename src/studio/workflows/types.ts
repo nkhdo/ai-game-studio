@@ -9,7 +9,7 @@ export type RunProjectOperation = (
   progress: string,
   task: (project: ProjectView) => Promise<ProjectMutation>,
   success: string,
-  options?: { preserveDraft?: boolean },
+  options?: { preserveDraft?: boolean; toastError?: boolean },
 ) => Promise<void>;
 
 export interface WorkflowEnvironment {

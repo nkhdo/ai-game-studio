@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useStudio } from "../studio/context";
 import BaseButton from "../ui/BaseButton.vue";
-import BaseStatus from "../ui/BaseStatus.vue";
 import UiIcon from "../ui/UiIcon.vue";
 import UiDropdown from "../ui/UiDropdown.vue";
 import FramePreview from "../ui/FramePreview.vue";
@@ -51,12 +50,12 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
             :key="animation.id"
             class="animation-row"
             :class="{ 'is-active': animation.id === studio.state.animationDraft.activeAnimationId }"
+            @click="studio.actions.activateAnimation(animation.id)"
           >
             <button
               class="animation-row__select"
               type="button"
               :aria-pressed="animation.id === studio.state.animationDraft.activeAnimationId"
-              @click="studio.actions.activateAnimation(animation.id)"
             >
               <span class="animation-row__title">{{ animation.name }}</span>
               <span class="animation-row__meta">
@@ -64,8 +63,8 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
               </span>
             </button>
             <div class="animation-row__actions">
-              <button class="btn btn--link btn--sm" type="button" @click="studio.actions.exportAnimation(animation.id)">Export</button>
-              <button class="btn btn--link btn--sm" type="button" @click="studio.actions.deleteAnimation(animation.id)">Delete</button>
+              <button class="btn btn--link btn--sm" type="button" @click.stop="studio.actions.exportAnimation(animation.id)">Export</button>
+              <button class="btn btn--link btn--sm" type="button" @click.stop="studio.actions.deleteAnimation(animation.id)">Delete</button>
             </div>
           </div>
         </div>
@@ -152,7 +151,6 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
               </div>
             </div>
           </div>
-          <BaseStatus :message="operation.message" :kind="operation.phase === 'error' ? 'error' : operation.phase === 'success' ? 'success' : 'info'" />
         </div>
       </div>
       </div>

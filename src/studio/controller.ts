@@ -114,7 +114,7 @@ export function createStudioController(
     progress: string,
     task: (project: ProjectView) => Promise<ProjectMutation>,
     success: string,
-    options: { preserveDraft?: boolean } = {},
+    options: { preserveDraft?: boolean; toastError?: boolean } = {},
   ) {
     const initialProject = state.project;
     if (!initialProject) return;
@@ -127,9 +127,11 @@ export function createStudioController(
       if (!finishOperation(state, name, id, project.id, "success", success)) return;
       applyMutation(project, mutation, options.preserveDraft);
       notify(success);
-    } catch (error) {
-      finishOperation(state, name, id, initialProject.id, "error", errorMessage(error, "Operation failed"));
-    }
+  } catch (error) {
+    const message = errorMessage(error, "Operation failed");
+    finishOperation(state, name, id, initialProject.id, "error", message);
+    if (options.toastError) notify(message);
+  }
   }
 
   const workflowEnvironment: WorkflowEnvironment = {
