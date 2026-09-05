@@ -1,6 +1,6 @@
-# AI Game Studio
+# SpriteSheetStudio
 
-AI Game Studio creates reusable game assets through project-based generation and composition workflows.
+SpriteSheetStudio creates reusable game assets through project-based generation and composition workflows.
 
 ## Language
 

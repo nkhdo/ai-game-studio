@@ -1,90 +1,45 @@
-# AI Game Studio
+# SpriteSheetStudio
 
-A local web app — and the start of a fuller AI Game Studio — for creating game assets from generated or uploaded source images. Today: 2D reference sprites and reusable named Animations composed from generated Movement Frames. Backgrounds are chroma-keyed to transparency automatically, so frames drop straight into a game engine. Projects can be saved and loaded by name.
+A local web app for creating 2D game Animations from generated or uploaded Reference Sprites.
 
-The app talks to [OpenRouter](https://openrouter.ai) as the single boundary to the model providers. One key gives access to 300+ image / video / audio / text models, which is the runway for everything on the TO-DO list (backgrounds, tilemaps, SFX, music, voice, …).
-
-Pick both image and video models at generation time. Image options are **OpenAI GPT Image 2** (default) and **xAI Grok Imagine Image 2.0**; video options are **Grok Imagine Video** (xAI), **MiniMax H3**, and **Seedance 2.0** (ByteDance). All generation is routed through OpenRouter.
-
-![Mockup](mockup.png)
-
-Full Demo: https://www.youtube.com/watch?v=MijheSPXnDo
+SpriteSheetStudio uses OpenRouter for image and video generation. It extracts transparent Movement Frames locally with ffmpeg, then creates spritesheets and looping previews. Projects autosave to gitignored UUID workspaces under `projects/`.
 
 ## Requirements
 
-- Node 20+
+- Node.js 20+
+- pnpm 11 (enable it with Corepack if needed)
 - `ffmpeg` on `PATH`
-- An [OpenRouter API key](https://openrouter.ai/keys) for image or motion generation (local Reference Sprite upload works without one)
+- An OpenRouter API key for generation
 
-## Install
+Uploads and local frame processing do not require an API key.
+
+## Setup
 
 ```bash
-npm install
-
+pnpm install
 cp .env.example .env
-# then open .env and paste your key:
-# OPENROUTER_API_KEY=sk-or-v1-...
+# Add OPENROUTER_API_KEY to .env
+pnpm dev
 ```
 
-## Run
+Open <http://localhost:5173>.
+
+## Workflow
+
+1. Generate or upload a Reference Sprite.
+2. Choose a video model and generate movement video.
+3. Configure extraction and generate transparent Movement Frames.
+4. Select frames, set the name and FPS, then save the Animation.
+5. Preview, update, export, or delete saved Animations.
+
+Projects can be created, switched, renamed, and deleted from the header.
+
+## Commands
 
 ```bash
-npm run dev
+pnpm dev
+pnpm test
+pnpm build
 ```
 
-Open http://localhost:5173.
-
-This starts Vite (frontend, :5173) and an Express server (backend, :8787) together. Stop with `Ctrl+C`.
-
-## Using it
-
-1. In column 1, either generate a Reference Sprite from a prompt or upload an existing PNG, JPEG, or WebP image (10 MB maximum).
-2. Pick a video model and type a motion prompt in column 2 → **Generate Video** (calls image-to-video via OpenRouter and retains the downloaded source video).
-3. Choose Palette Lock and Hard Alpha Edges options → **Generate Frames** (locally extracts transparent PNGs from the retained video without another model call).
-4. Click frame tiles to toggle which ones to include.
-5. **Select frames** → previews the Animation Draft immediately at the chosen FPS.
-6. **Save as New** → freezes the selected frames and creates a named Animation with a 1×N spritesheet and looping GIF.
-7. Reopen, update, export, or delete any saved Animation from the project library.
-8. Use **Current Project** in the header to create, switch, rename, or delete projects. Draft fields and completed operations save automatically.
-
-Generated artifacts live under UUID-addressed directories in `projects/` (gitignored). Project labels are editable display names and do not affect storage paths.
-
-## Example prompts
-
-### Sprite prompts
-
-- `A pixel-art knight in silver armor with a longsword, side-view, full body, simple flat colors, standing pose`
-- `Female ninja with red scarf, dynamic side-view, 2D sprite, anime style`
-- `Cute green slime monster, side-view, big eyes, soft shading`
-- `Cyberpunk hacker in a hoodie, glowing visor, side-view full body, gritty style`
-
-### Motion prompts
-
-- `Smooth walk cycle, side-view, no head tilting, no camera movement`
-- `Sword slash attack, side-view, fast, no shadows`
-- `Idle breathing animation, subtle, looping`
-- `Jump arc — crouch, leap, mid-air, land`
-
-Tips:
-- Uploaded images are normalized to PNG. Transparent pixels are composited onto chroma green, and the app warns when the outer background may not key cleanly.
-- Keep motion prompts focused on the action. Phrases like *"no camera movement"*, *"side-view"*, and *"no head tilting"* help keep frames game-ready.
-- Switching the image model is one entry in `server/image.ts` — see `IMAGE_MODELS`.
-- Per-model default durations: Grok Imagine Video = 2 s, MiniMax H3 = 5 s, Seedance 2.0 = 4 s. ~24–30 fps on the source clip, so trim with the frame selector before composing.
-- Video models use the Reference Sprite as an exact first frame. Model-specific minimum input dimensions live in the server registry; undersized sprites are enlarged in memory by the smallest valid integer multiple and the stored Reference Sprite is left untouched. Extracted frames are contain-fitted and transparently padded to the acquired Target Frame Size.
-- Switching the model is one entry in `server/video.ts` — see `VIDEO_MODELS`.
-- Recommend sticking to Grok Imagine Video since it's much cheaper than Seedance 2
-
-## TO-DO
-
-- [ ] Background generation
-- [ ] Tilemap generation
-- [ ] Aseprite format export
-- [ ] Tiled format export
-- [ ] SFX generation
-- [ ] Music generation
-- [ ] Voice generation
-- [ ] Full asset scaffolding export
-
-## More
-
-See [AGENTS.md](AGENTS.md) for the full spec, architecture, endpoint list, model-registry pattern, and chroma-key tuning notes.
+Generated artifacts, videos, and local environment files are ignored by Git. See [AGENTS.md](AGENTS.md) for contributor guidance and [CONTEXT.md](CONTEXT.md) for domain terminology.
