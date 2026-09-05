@@ -4,6 +4,7 @@ import { useStudio } from "../studio/context";
 import BaseButton from "../ui/BaseButton.vue";
 import BaseStatus from "../ui/BaseStatus.vue";
 import FileDropzone from "../ui/FileDropzone.vue";
+import UiIcon from "../ui/UiIcon.vue";
 
 const studio = useStudio();
 const operation = computed(() => studio.state.operations.reference);
@@ -11,6 +12,12 @@ const styleOperation = computed(() => studio.state.operations.styleGuide);
 const imageModel = computed(() => studio.imageModels.find(({ id }) => id === studio.state.draft.spriteModel));
 const guideLimit = computed(() => Math.min(3, imageModel.value?.maxStyleGuideImages ?? 0));
 const busy = computed(() => operation.value.phase === "running");
+
+function addStyleGuides(event: Event) {
+  const input = event.target as HTMLInputElement;
+  void studio.actions.addStyleGuides([...(input.files ?? [])]);
+  input.value = "";
+}
 </script>
 
 <template>
@@ -30,13 +37,33 @@ const busy = computed(() => operation.value.phase === "running");
           <textarea id="sprite-prompt" v-model="studio.state.draft.spritePrompt" class="textarea" rows="3" placeholder="Describe the character or object…" />
         </div>
         <div class="style-guide-field">
-          <div class="style-guide-field__header"><span class="field__label">Style Guide Images · optional</span><span>{{ studio.state.project?.styleGuides.length ?? 0 }}/{{ guideLimit }}</span></div>
-          <FileDropzone input-id="style-guides" accept="image/png,image/jpeg,image/webp" multiple label="Drop style examples or choose files" hint="PNG, JPEG, or WebP · 10 MB each" :disabled="styleOperation.phase === 'running'" @files="studio.actions.addStyleGuides" />
+          <div class="style-guide-field__header">
+            <span class="field__label">Style Guide Images · optional</span>
+            <span class="style-guide-field__count">{{ studio.state.project?.styleGuides.length ?? 0 }}/{{ guideLimit }}</span>
+          </div>
           <div class="style-guide-list">
             <div v-for="guide in studio.state.project?.styleGuides" :key="guide.id" class="style-guide-thumb">
               <img :src="guide.url" alt="" />
               <button class="style-guide-thumb__remove" type="button" :aria-label="`Remove ${guide.originalFilename}`" @click="studio.actions.removeStyleGuide(guide.id)">×</button>
             </div>
+            <label
+              v-if="(studio.state.project?.styleGuides.length ?? 0) < guideLimit"
+              class="style-guide-add"
+              :class="{ 'is-disabled': styleOperation.phase === 'running' }"
+              for="style-guides"
+              aria-label="Add Style Guide Images"
+            >
+              <input
+                id="style-guides"
+                class="visually-hidden"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                multiple
+                :disabled="styleOperation.phase === 'running'"
+                @change="addStyleGuides"
+              />
+              <UiIcon name="plus" />
+            </label>
           </div>
           <BaseStatus :message="styleOperation.message" :kind="styleOperation.phase === 'error' ? 'error' : styleOperation.phase === 'success' ? 'success' : 'info'" :busy="styleOperation.phase === 'running'" />
         </div>
