@@ -6,7 +6,7 @@ SpriteSheetStudio uses OpenRouter for image and video generation. It extracts tr
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22.22.2+
 - pnpm 11 (enable it with Corepack if needed)
 - `ffmpeg` on `PATH`
 - An OpenRouter API key for generation
