@@ -24,17 +24,13 @@ export function createStudioRouter(): Router {
   return createRouter({
     history: createWebHistory(),
     routes: [
+      { path: "/", redirect: { name: "project" } },
       {
-        path: "/",
-        name: "home",
-        component: () => import("./App.vue"),
-      },
-      {
-        path: "/project/:projectId",
+        path: "/project/:projectId?",
         name: "project",
         component: () => import("./App.vue"),
       },
-      { path: "/:pathMatch(.*)*", redirect: { name: "home" } },
+      { path: "/:pathMatch(.*)*", redirect: { name: "project" } },
     ],
   });
 }

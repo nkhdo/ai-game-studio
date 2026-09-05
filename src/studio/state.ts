@@ -117,6 +117,10 @@ export function reconcileProject(
   ) {
     newAnimationDraft(state);
   }
+  if (!state.animationDraft.activeAnimationId && !options.preserveDraft) {
+    state.animationDraft.frameSequence = [...project.selectedFrameIndices];
+    state.animationDraft.frozenFrameUrls = null;
+  }
 }
 
 export function beginOperation(

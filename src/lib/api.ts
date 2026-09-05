@@ -296,6 +296,18 @@ export function saveSelection(selectedIndices: number[]): Promise<ProjectView> {
   return postJson("/api/projects/selection", { selectedIndices });
 }
 
+export function saveSelectionFor(
+  projectId: string,
+  revision: number,
+  selectedIndices: number[],
+): Promise<ProjectView> {
+  return postJson(
+    "/api/projects/selection",
+    { selectedIndices },
+    { id: projectId, revision },
+  );
+}
+
 export function saveSpritesheet(dataUrl: string): Promise<ProjectView> {
   return postJson("/api/projects/spritesheet", { dataUrl });
 }

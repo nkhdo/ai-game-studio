@@ -57,4 +57,15 @@ describe("DraftSynchronizer", () => {
     expect(statuses).toContain("error");
     expect(save).toHaveBeenCalledTimes(2);
   });
+
+  it("accepts revisions advanced by immediate Project writes", async () => {
+    const timer = fakeClock();
+    const save = vi.fn().mockResolvedValue({ revision: 5 });
+    const sync = new DraftSynchronizer(timer.clock, save, 700, () => undefined);
+    sync.attach("project-one", 1, draft);
+    sync.advanceRevision("project-one", 4);
+    sync.update({ ...draft, motionPrompt: "run" });
+    await sync.flush();
+    expect(save).toHaveBeenCalledWith("project-one", 4, expect.anything(), draft);
+  });
 });
