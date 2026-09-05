@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { emptyManifest, toMutation, toView } from "./projects.js";
+import { compareProjectsByCreatedAt, emptyManifest, toMutation, toView } from "./projects.js";
 
 test("project view exposes an explicitly persisted source video without frames", () => {
   const manifest = emptyManifest();
@@ -53,4 +53,20 @@ test("Project mutations expose only their declared domain fields", () => {
   assert.equal("frames" in mutation.changes, false);
   assert.equal("spriteUrl" in mutation.changes, false);
   assert.equal(mutation.revision, view.revision);
+});
+
+test("Projects remain ordered by creation time when one is updated", () => {
+  const older = {
+    id: "older", label: "Older", createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-03-01T00:00:00.000Z",
+  };
+  const newer = {
+    id: "newer", label: "Newer", createdAt: "2026-02-01T00:00:00.000Z",
+    updatedAt: "2026-02-01T00:00:00.000Z",
+  };
+
+  assert.deepEqual([older, newer].sort(compareProjectsByCreatedAt).map(({ id }) => id), [
+    "newer",
+    "older",
+  ]);
 });
