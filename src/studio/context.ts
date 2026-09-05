@@ -31,6 +31,7 @@ export interface StudioContext {
   projects: ProjectSummary[];
   activePanel: "reference" | "movement" | "frames";
   hasApiKey: boolean;
+  frameUrls: string[];
   actions: StudioActions;
 }
 

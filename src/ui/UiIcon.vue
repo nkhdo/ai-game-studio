@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ name: "plus" | "minus" | "play" | "pause" | "chevron-down" | "edit" | "trash" }>();
+defineProps<{ name: "plus" | "minus" | "play" | "pause" | "previous" | "next" | "chevron-down" | "edit" | "trash" }>();
 </script>
 
 <template>
@@ -30,6 +30,16 @@ defineProps<{ name: "plus" | "minus" | "play" | "pause" | "chevron-down" | "edit
     <path
       v-else-if="name === 'play'"
       d="M5.5 3.5 12 8l-6.5 4.5z"
+      fill="currentColor"
+    />
+    <path
+      v-else-if="name === 'previous'"
+      d="m10.5 3.5-6 4.5 6 4.5z"
+      fill="currentColor"
+    />
+    <path
+      v-else-if="name === 'next'"
+      d="m5.5 3.5 6 4.5-6 4.5z"
       fill="currentColor"
     />
     <path
