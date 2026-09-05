@@ -1,6 +1,6 @@
 import { computed, reactive, watch } from "vue";
 import type { RouteLocationNormalizedLoaded, Router } from "vue-router";
-import type { ProjectView } from "../lib/api";
+import type { ProjectMutation, ProjectView } from "../lib/api";
 import { routeAnimation, routePanel, type LeftPanel } from "../router";
 import type { StudioContext } from "./context";
 import type { StudioDependencies } from "./dependencies";
@@ -16,7 +16,7 @@ import {
   reconcileProject,
   useStudioProjections,
 } from "./state";
-import { errorMessage } from "./workflows/types";
+import { errorMessage, mergeMutation } from "./workflows/types";
 import { createAnimationActions } from "./workflows/animation";
 import { createMovementActions } from "./workflows/movement";
 import { createProjectActions } from "./workflows/projects";
@@ -57,16 +57,17 @@ export function createStudioController(
   const sync = new DraftSynchronizer(
     dependencies.clock,
     async (projectId, revision, patch, base) => {
-      const view = await dependencies.server.saveProjectDraft(
+      const mutation = await dependencies.server.saveProjectDraft(
         { id: projectId, revision },
         toServerDraft(patch),
         toServerDraft(base),
       );
       if (state.project?.id === projectId) {
-        state.project.revision = view.revision;
+        state.project.revision = mutation.revision;
+        state.project.updatedAt = mutation.updatedAt;
         await refreshProjects();
       }
-      return { revision: view.revision };
+      return { revision: mutation.revision };
     },
     700,
     (phase) => {
@@ -89,6 +90,12 @@ export function createStudioController(
     suppressDraftSave = false;
   }
 
+  function applyMutation(project: ProjectView, mutation: ProjectMutation, preserveDraft = true) {
+    if (state.project?.id !== project.id) return;
+    apply(mergeMutation(project, mutation), preserveDraft);
+    sync.advanceRevision(project.id, mutation.revision);
+  }
+
   async function refreshProjects() {
     context.projects = await dependencies.server.listProjects();
   }
@@ -106,7 +113,7 @@ export function createStudioController(
   async function run(
     name: Parameters<typeof beginOperation>[1],
     progress: string,
-    task: (project: ProjectView) => Promise<ProjectView>,
+    task: (project: ProjectView) => Promise<ProjectMutation>,
     success: string,
     options: { preserveDraft?: boolean } = {},
   ) {
@@ -114,9 +121,9 @@ export function createStudioController(
     if (!project) return;
     const id = beginOperation(state, name, project.id, progress);
     try {
-      const view = await task(project);
+      const mutation = await task(project);
       if (!finishOperation(state, name, id, project.id, "success", success)) return;
-      apply(view, options.preserveDraft);
+      applyMutation(project, mutation, options.preserveDraft);
       notify(success);
     } catch (error) {
       finishOperation(state, name, id, project.id, "error", errorMessage(error, "Operation failed"));
@@ -130,6 +137,7 @@ export function createStudioController(
     sync,
     run,
     apply,
+    applyMutation,
     notify,
     refreshProjects,
     openProject,

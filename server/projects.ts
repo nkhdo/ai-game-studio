@@ -126,6 +126,23 @@ export interface ProjectView {
   updatedAt: string;
 }
 
+export interface ProjectMutation {
+  revision: number;
+  updatedAt: string;
+  changes: Partial<ProjectView>;
+}
+
+export function toMutation(
+  view: ProjectView,
+  keys: readonly (keyof ProjectView)[],
+): ProjectMutation {
+  return {
+    revision: view.revision,
+    updatedAt: view.updatedAt,
+    changes: Object.fromEntries(keys.map((key) => [key, view[key]])),
+  };
+}
+
 export function emptyManifest(id: string = randomUUID(), label = "Untitled project"): ProjectManifest {
   const now = new Date().toISOString();
   return {

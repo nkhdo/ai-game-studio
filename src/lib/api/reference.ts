@@ -1,8 +1,18 @@
 import { getJson, postJson, projectHeaders } from "./transport";
-import type { AcquisitionGeometry, ImageModelsResponse, ProjectRequestContext, ProjectView } from "./types";
+import type { AcquisitionGeometry, ImageModelsResponse, ProjectMutation, ProjectRequestContext, ProjectView } from "./types";
+
+export type StyleGuideMutation = ProjectMutation<Pick<ProjectView, "styleGuides" | "styleGuidesChanged">>;
+export type ReferenceMutation = ProjectMutation<Pick<ProjectView,
+  "spritePrompt" | "spriteModel" | "styleGuides" | "styleGuidesChanged" |
+  "spritePaletteLock" | "spriteAcquisition" | "spriteOriginalFilename" |
+  "backgroundSuitability" | "spriteUrl" | "spriteDimensions" | "targetFrameSize" |
+  "subjectFillPct" | "colorCount" | "subjectFillMeasured" | "sourceVideoUrl" |
+  "motionPrompt" | "motionModel" | "frames" | "framesUpdatedAt" | "animations" |
+  "preservedOffPalettePixels" | "removedLowAlphaPixels" | "removedChromaFringePixels"
+>>;
 
 export interface GenerateSpriteResponse {
-  view: ProjectView;
+  mutation: ReferenceMutation;
   dataUrl: string;
 }
 
@@ -35,7 +45,7 @@ export function generateSprite(
 export async function uploadStyleGuide(
   context: ProjectRequestContext,
   file: File,
-): Promise<ProjectView> {
+): Promise<StyleGuideMutation> {
   const body = new FormData();
   body.append("image", file);
   const res = await fetch("/api/sprites/style-guides", {
@@ -49,10 +59,10 @@ export async function uploadStyleGuide(
       typeof json.error === "string" ? json.error : `Style guide upload failed (${res.status})`,
     );
   }
-  return json as unknown as ProjectView;
+  return json as unknown as StyleGuideMutation;
 }
 
-export function removeStyleGuide(context: ProjectRequestContext, id: string): Promise<ProjectView> {
+export function removeStyleGuide(context: ProjectRequestContext, id: string): Promise<StyleGuideMutation> {
   return postJson("/api/sprites/style-guides/remove", { id }, context);
 }
 
@@ -81,7 +91,7 @@ export async function prepareSpriteUpload(
 export function commitSpriteUpload(
   context: ProjectRequestContext,
   uploadId: string,
-): Promise<ProjectView> {
+): Promise<ReferenceMutation> {
   return postJson("/api/sprites/upload/commit", { uploadId }, context);
 }
 

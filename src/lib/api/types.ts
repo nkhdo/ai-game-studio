@@ -100,3 +100,9 @@ export interface ProjectRequestContext {
   id: string;
   revision: number;
 }
+
+export interface ProjectMutation<T extends Partial<ProjectView> = Partial<ProjectView>> {
+  revision: number;
+  updatedAt: string;
+  changes: T;
+}

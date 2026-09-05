@@ -1,5 +1,5 @@
 import { beginOperation, finishOperation } from "../state";
-import { errorMessage, requestContext, type WorkflowEnvironment } from "./types";
+import { errorMessage, mergeMutation, requestContext, type WorkflowEnvironment } from "./types";
 
 const ACCEPTED_IMAGES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -33,7 +33,10 @@ export function createReferenceActions(env: WorkflowEnvironment) {
             subjectFillPct: state.draft.subjectFillPct,
             colorCount: state.draft.colorCount,
           }, state.draft.spritePaletteLock);
-        return { ...result.view, spriteUrl: result.dataUrl };
+        return {
+          ...result.mutation,
+          changes: { ...result.mutation.changes, spriteUrl: result.dataUrl },
+        };
       }, "Reference Sprite ready.");
     },
 
@@ -60,9 +63,9 @@ export function createReferenceActions(env: WorkflowEnvironment) {
           finishOperation(state, "reference", id, project.id, "success", "Upload cancelled.");
           return;
         }
-        const view = await dependencies.server.commitSpriteUpload(context, prepared.uploadId);
+        const mutation = await dependencies.server.commitSpriteUpload(context, prepared.uploadId);
         if (finishOperation(state, "reference", id, project.id, "success", "Reference Sprite uploaded.")) {
-          env.apply(view);
+          env.applyMutation(project, mutation);
           env.notify("Reference Sprite uploaded");
         }
       } catch (error) {
@@ -78,9 +81,13 @@ export function createReferenceActions(env: WorkflowEnvironment) {
         return;
       }
       await run("styleGuide", "Adding Style Guide Images…", async (project) => {
-        let view = project;
-        for (const file of files) view = await dependencies.server.uploadStyleGuide(requestContext(view), file);
-        return view;
+        let current = project;
+        let latest = null;
+        for (const file of files) {
+          latest = await dependencies.server.uploadStyleGuide(requestContext(current), file);
+          current = mergeMutation(current, latest);
+        }
+        return latest ?? { revision: project.revision, updatedAt: project.updatedAt, changes: {} };
       }, "Style Guide Images updated.", { preserveDraft: true });
     },
 

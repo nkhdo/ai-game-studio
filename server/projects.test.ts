@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { emptyManifest, toView } from "./projects.js";
+import { emptyManifest, toMutation, toView } from "./projects.js";
 
 test("project view exposes an explicitly persisted source video without frames", () => {
   const manifest = emptyManifest();
@@ -44,4 +44,13 @@ test("frame cleanup fields default safely and round-trip through the view", () =
   assert.equal(view.preservedOffPalettePixels, 42);
   assert.equal(view.removedLowAlphaPixels, 7);
   assert.equal(view.removedChromaFringePixels, 3);
+});
+
+test("Project mutations expose only their declared domain fields", () => {
+  const view = toView(emptyManifest());
+  const mutation = toMutation(view, ["animations"]);
+  assert.deepEqual(Object.keys(mutation.changes), ["animations"]);
+  assert.equal("frames" in mutation.changes, false);
+  assert.equal("spriteUrl" in mutation.changes, false);
+  assert.equal(mutation.revision, view.revision);
 });

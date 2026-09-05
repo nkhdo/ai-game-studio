@@ -19,7 +19,7 @@ export function createProjectActions(env: WorkflowEnvironment) {
       const label = await dependencies.confirmation.prompt("Project label", project?.label ?? "");
       if (!label?.trim()) return;
       const view = await dependencies.server.renameProject(id, label.trim());
-      if (id === state.project?.id) env.apply(view);
+      if (id === state.project?.id && state.project) env.applyMutation(state.project, view);
       await env.refreshProjects();
     },
 
