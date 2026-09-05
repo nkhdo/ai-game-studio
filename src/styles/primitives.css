@@ -73,7 +73,7 @@
 .textarea:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .textarea {
@@ -106,7 +106,7 @@
 .select:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 /* ---------- Buttons ---------- */
@@ -146,7 +146,7 @@
 }
 
 .btn--secondary:hover:not(:disabled) {
-  background: #f9fafb;
+  background: var(--surface-subtle);
 }
 
 .btn--link {

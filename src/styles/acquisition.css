@@ -3,7 +3,7 @@
   grid-template-columns: 1fr 1fr;
   padding: 3px;
   border-radius: var(--radius-sm);
-  background: #f3f4f6;
+  background: var(--surface-muted);
 }
 
 .mode-switch__button {
@@ -62,7 +62,7 @@
   padding: 10px 12px;
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-sm);
-  background: #fafafa;
+  background: var(--surface-raised);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -74,8 +74,8 @@
 .style-guide-dropzone:focus-within,
 .style-guide-dropzone.is-dragging {
   border-color: var(--primary);
-  background: #eff6ff;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+  background: var(--primary-faint);
+  box-shadow: 0 0 0 3px var(--focus-ring-soft);
 }
 
 .style-guide-dropzone.is-disabled {
@@ -128,7 +128,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;
-  background: #f3f4f6;
+  background: var(--surface-muted);
 }
 
 .style-guide-thumb img {
@@ -147,8 +147,8 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: rgba(17, 24, 39, 0.82);
-  color: #fff;
+  background: var(--overlay);
+  color: var(--on-overlay);
   font: inherit;
   font-size: 15px;
   line-height: 18px;
@@ -180,7 +180,7 @@
   align-items: flex-start;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid var(--border, #e5e7eb);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   user-select: none;
@@ -219,7 +219,7 @@
   padding: 22px 16px;
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-sm);
-  background: #fafafa;
+  background: var(--surface-raised);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -234,8 +234,8 @@
 .upload-dropzone:focus-within,
 .upload-dropzone.is-dragging {
   border-color: var(--primary);
-  background: #eff6ff;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+  background: var(--primary-faint);
+  box-shadow: 0 0 0 3px var(--focus-ring-soft);
 }
 
 .upload-dropzone__icon {

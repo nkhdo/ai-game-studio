@@ -17,7 +17,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #111827;
+  background: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
@@ -26,12 +26,12 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: #111827;
+  background: var(--text);
 }
 
 .motion-video-preview__placeholder {
   padding: 12px;
-  color: #9ca3af;
+  color: var(--text-subtle);
   font-size: 11px;
   text-align: center;
 }
@@ -79,7 +79,7 @@
   padding: 4px 8px 4px 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: #fafafa;
+  background: var(--surface-raised);
 }
 
 .columns > .card .frames-grid {
@@ -111,7 +111,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background:
-    repeating-conic-gradient(#f9fafb 0% 25%, #ffffff 0% 50%) 0 0 / 12px 12px;
+    repeating-conic-gradient(var(--surface-subtle) 0% 25%, var(--card) 0% 50%) 0 0 / 12px 12px;
   cursor: pointer;
   overflow: hidden;
   transition: border-color 120ms ease, box-shadow 120ms ease, transform 80ms ease;
@@ -151,7 +151,7 @@
 
 .frame-tile.is-selected {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 0 0 2px var(--selection-ring);
 }
 
 .frame-tile.is-selected .frame-tile__num {
