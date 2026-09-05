@@ -27,7 +27,7 @@ let preparedExpiryTimer: NodeJS.Timeout | null = null;
 export type BackgroundSuitability = "suitable" | "warning" | "unknown";
 export type SpriteAcquisition = "generated" | "uploaded";
 
-export const TARGET_FRAME_SIZES = [32, 64, 128, 192, 256] as const;
+export const TARGET_FRAME_SIZES = [32, 64, 128, 192, 256, 384, 512] as const;
 export const SUBJECT_FILL_OPTIONS = [50, 70, 85] as const;
 export const COLOR_COUNT_OPTIONS = [4, 8, 16, 32] as const;
 export const DEFAULT_TARGET_FRAME_SIZE = 128;
