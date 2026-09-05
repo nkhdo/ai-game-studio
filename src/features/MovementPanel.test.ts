@@ -6,7 +6,7 @@ import { createStudioState } from "../studio/state";
 import MovementPanel from "./MovementPanel.vue";
 
 describe("MovementPanel", () => {
-  it("places Generate Video in a full-width primary row", () => {
+  it("places Generate Movement Video in a full-width primary row", () => {
     const state = createStudioState();
     state.project = { id: "one", spriteUrl: "/sprite.png" } as typeof state.project;
     const studio = reactive({
@@ -19,6 +19,7 @@ describe("MovementPanel", () => {
       global: { provide: { [studioKey as symbol]: studio } },
     });
     const button = wrapper.get("button.btn--primary");
+    expect(button.text()).toBe("Generate Movement Video");
     expect(button.classes()).toContain("btn--block");
     expect(button.element.parentElement?.classList.contains("motion-controls")).toBe(false);
   });
