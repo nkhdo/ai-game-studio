@@ -379,6 +379,10 @@ export interface ProjectSummary {
   updatedAt: string;
 }
 
+export function compareProjectsByCreatedAt(a: ProjectSummary, b: ProjectSummary): number {
+  return b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id);
+}
+
 export async function listSavedProjects(): Promise<ProjectSummary[]> {
   await migrateLegacyProjects();
   if (!existsSync(PROJECTS_DIR)) return [];
@@ -393,7 +397,7 @@ export async function listSavedProjects(): Promise<ProjectSummary[]> {
       // skip malformed
     }
   }
-  out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  out.sort(compareProjectsByCreatedAt);
   return out;
 }
 
