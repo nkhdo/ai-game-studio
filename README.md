@@ -4,6 +4,8 @@ A local web app for creating 2D game Animations from generated or uploaded Refer
 
 SpriteSheetStudio uses OpenRouter for image and video generation. It extracts transparent Movement Frames locally with ffmpeg, then creates spritesheets and looping previews. Projects autosave to gitignored UUID workspaces under `projects/`.
 
+SpriteSheetStudio began as a fork of [acatovic/ai-game-studio](https://github.com/acatovic/ai-game-studio). It has since diverged substantially, with a redesigned workflow, architecture, interface, and project model.
+
 ## Requirements
 
 - Node.js 22.22.2+
