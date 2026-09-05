@@ -35,8 +35,8 @@
   position: fixed;
   bottom: 20px;
   right: 20px;
-  background: var(--accent-dark);
-  color: white;
+  background: var(--overlay);
+  color: var(--on-overlay);
   padding: 10px 14px;
   border-radius: var(--radius-sm);
   font-size: 12px;
