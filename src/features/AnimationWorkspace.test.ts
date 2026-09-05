@@ -92,4 +92,33 @@ describe("AnimationWorkspace", () => {
     expect(settings.get('input[type="number"]').attributes("max")).toBe("60");
     expect(wrapper.find(".animation-editor__header").exists()).toBe(false);
   });
+
+  it("expands the preview by hiding and restoring the frame selector", async () => {
+    const wrapper = mount(AnimationWorkspace, {
+      global: { provide: { [studioKey as symbol]: context() } },
+    });
+
+    await wrapper.get('[aria-label="Expand preview"]').trigger("click");
+    expect(wrapper.get(".animation-edit-pane").classes()).toContain("is-preview-expanded");
+    expect(wrapper.get('[aria-label="Collapse preview"] svg').attributes("data-icon")).toBe("collapse");
+
+    await wrapper.get('[aria-label="Collapse preview"]').trigger("click");
+    expect(wrapper.get(".animation-edit-pane").classes()).not.toContain("is-preview-expanded");
+    expect(wrapper.get('[aria-label="Expand preview"] svg').attributes("data-icon")).toBe("expand");
+  });
+
+  it("groups preview controls in playback, zoom, navigation, and expansion order", () => {
+    const wrapper = mount(AnimationWorkspace, {
+      global: { provide: { [studioKey as symbol]: context() } },
+    });
+    const groups = wrapper.findAll(".quick-preview__control-group");
+
+    expect(groups).toHaveLength(4);
+    expect(groups.map((group) => group.findAll("button").map((button) => button.attributes("aria-label")))).toEqual([
+      ["Play preview"],
+      ["Zoom in", "Reset zoom", "Zoom out"],
+      ["Previous frame", "Next frame"],
+      ["Expand preview"],
+    ]);
+  });
 });

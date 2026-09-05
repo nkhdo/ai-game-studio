@@ -9,6 +9,7 @@ const operation = computed(() => studio.state.operations.animation);
 const playing = ref(false);
 const position = ref(0);
 const zoom = ref(1);
+const previewExpanded = ref(false);
 let timer: number | null = null;
 const frames = computed(() => studio.frameUrls);
 function restart() {
@@ -68,7 +69,7 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
           </div>
         </div>
       </aside>
-      <div class="animation-edit-pane">
+      <div class="animation-edit-pane" :class="{ 'is-preview-expanded': previewExpanded }">
         <div class="frames-section">
           <div class="frames-section__header">
             <div class="frames-section__label">Select frames for this Animation</div>
@@ -120,13 +121,22 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
               <BaseButton :disabled="!frames.length || operation.phase === 'running'" @click="studio.actions.saveAnimation(false)">Save as</BaseButton>
             </div>
             <div class="quick-preview__overlay quick-preview__overlay--right quick-preview__controls">
-              <span class="quick-preview__position">{{ frames.length ? position + 1 : 0 }} / {{ frames.length }}</span>
-              <button class="quick-preview__action" type="button" aria-label="Previous frame" :disabled="!frames.length" @click="showAdjacentFrame(-1)"><UiIcon name="previous" /></button>
-              <button class="quick-preview__action" type="button" aria-label="Next frame" :disabled="!frames.length" @click="showAdjacentFrame(1)"><UiIcon name="next" /></button>
-              <button class="quick-preview__action" type="button" aria-label="Zoom out" :disabled="zoom <= .5" @click="zoom = Math.max(.5, zoom - .25)"><UiIcon name="minus" /></button>
-              <button class="quick-preview__action quick-preview__zoom" type="button" aria-label="Reset zoom" @click="zoom = 1">{{ Math.round(zoom * 100) }}%</button>
-              <button class="quick-preview__action" type="button" aria-label="Zoom in" :disabled="zoom >= 4" @click="zoom = Math.min(4, zoom + .25)"><UiIcon name="plus" /></button>
-              <button class="quick-preview__action quick-preview__play" type="button" :aria-label="playing ? 'Pause preview' : 'Play preview'" @click="playing = !playing"><UiIcon :name="playing ? 'pause' : 'play'" /></button>
+              <div class="quick-preview__control-group">
+                <button class="quick-preview__action" type="button" :aria-label="playing ? 'Pause preview' : 'Play preview'" @click="playing = !playing"><UiIcon :name="playing ? 'pause' : 'play'" /></button>
+              </div>
+              <div class="quick-preview__control-group">
+                <button class="quick-preview__action" type="button" aria-label="Zoom in" :disabled="zoom >= 4" @click="zoom = Math.min(4, zoom + .25)"><UiIcon name="plus" /></button>
+                <button class="quick-preview__action quick-preview__zoom" type="button" aria-label="Reset zoom" @click="zoom = 1">{{ Math.round(zoom * 100) }}%</button>
+                <button class="quick-preview__action" type="button" aria-label="Zoom out" :disabled="zoom <= .5" @click="zoom = Math.max(.5, zoom - .25)"><UiIcon name="minus" /></button>
+              </div>
+              <div class="quick-preview__control-group">
+                <button class="quick-preview__action" type="button" aria-label="Previous frame" :disabled="!frames.length" @click="showAdjacentFrame(-1)"><UiIcon name="previous" /></button>
+                <span class="quick-preview__position">{{ frames.length ? position + 1 : 0 }} / {{ frames.length }}</span>
+                <button class="quick-preview__action" type="button" aria-label="Next frame" :disabled="!frames.length" @click="showAdjacentFrame(1)"><UiIcon name="next" /></button>
+              </div>
+              <div class="quick-preview__control-group">
+                <button class="quick-preview__action" type="button" :aria-label="previewExpanded ? 'Collapse preview' : 'Expand preview'" :aria-pressed="previewExpanded" @click="previewExpanded = !previewExpanded"><UiIcon :name="previewExpanded ? 'collapse' : 'expand'" /></button>
+              </div>
             </div>
           </div>
           <BaseStatus :message="operation.message" :kind="operation.phase === 'error' ? 'error' : operation.phase === 'success' ? 'success' : 'info'" />
