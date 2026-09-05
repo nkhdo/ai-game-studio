@@ -138,9 +138,9 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
                 <button class="quick-preview__action" type="button" :aria-label="playing ? 'Pause preview' : 'Play preview'" @click="playing = !playing"><UiIcon :name="playing ? 'pause' : 'play'" /></button>
               </div>
               <div class="quick-preview__control-group">
-                <button class="quick-preview__action" type="button" aria-label="Zoom in" :disabled="zoom >= 4" @click="zoom = Math.min(4, zoom + .25)"><UiIcon name="plus" /></button>
-                <button class="quick-preview__action quick-preview__zoom" type="button" aria-label="Reset zoom" @click="zoom = 1">{{ Math.round(zoom * 100) }}%</button>
                 <button class="quick-preview__action" type="button" aria-label="Zoom out" :disabled="zoom <= .5" @click="zoom = Math.max(.5, zoom - .25)"><UiIcon name="minus" /></button>
+                <button class="quick-preview__action quick-preview__zoom" type="button" aria-label="Reset zoom" @click="zoom = 1">{{ Math.round(zoom * 100) }}%</button>
+                <button class="quick-preview__action" type="button" aria-label="Zoom in" :disabled="zoom >= 4" @click="zoom = Math.min(4, zoom + .25)"><UiIcon name="plus" /></button>
               </div>
               <div class="quick-preview__control-group">
                 <button class="quick-preview__action" type="button" aria-label="Previous frame" :disabled="!frames.length" @click="showAdjacentFrame(-1)"><UiIcon name="previous" /></button>
