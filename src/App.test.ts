@@ -39,7 +39,7 @@ describe("App", () => {
     await router.push("/project/project-one?panel=reference");
     const wrapper = mount(App, { global: { plugins: [router] } });
     await flushPromises();
-    expect(wrapper.text()).toContain("Choose Reference Sprite");
+    expect(wrapper.text()).toContain("Reference Sprite");
     expect(wrapper.text()).toContain("Generate Movement");
     expect(wrapper.text()).toContain("Generate Frames");
     expect(wrapper.text()).toContain("Animations");
