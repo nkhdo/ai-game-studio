@@ -18,7 +18,7 @@ function context(): StudioContext {
     imageModels: [],
     videoModels: [],
     projects: [],
-    activeStep: "reference",
+    activePanel: "reference",
     hasApiKey: true,
     actions: { retrySave: vi.fn() },
   }) as unknown as StudioContext;

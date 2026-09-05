@@ -34,11 +34,11 @@ describe("ReferenceSpritePanel", () => {
       imageModels: [{ id: "image", label: "Image", maxStyleGuideImages: 3, sizeStrategy: "target-size" }],
       videoModels: [],
       projects: [],
-      activeStep: "reference",
+      activePanel: "reference",
       hasApiKey: true,
       actions: {
         generateReference,
-        setStep: vi.fn(),
+        setPanel: vi.fn(),
         uploadReference: vi.fn(),
         addStyleGuides: vi.fn(),
         removeStyleGuide: vi.fn(),

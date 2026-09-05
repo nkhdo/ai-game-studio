@@ -7,7 +7,7 @@ import {
   type ProjectView,
 } from "../lib/api";
 import { composeSpritesheet } from "../lib/spritesheet";
-import { routeAnimation, routeStep, type WorkflowStep } from "../router";
+import { routeAnimation, routePanel, type LeftPanel } from "../router";
 import type { StudioContext } from "./context";
 import type { StudioDependencies } from "./dependencies";
 import { toServerDraft } from "./draft-persistence";
@@ -91,7 +91,7 @@ export function createStudioController(
     imageModels: [],
     videoModels: [],
     projects: [],
-    activeStep: "reference" as WorkflowStep,
+    activePanel: "reference" as LeftPanel,
     hasApiKey: false,
     ready: false,
     bootError: "",
@@ -141,21 +141,14 @@ export function createStudioController(
     context.projects = await dependencies.server.listProjects();
   }
 
-  async function setRoute(step: WorkflowStep, animation?: string | null) {
+  async function setPanelRoute(panel: LeftPanel, animation?: string | null) {
     if (!state.project) return;
-    context.activeStep = step;
+    context.activePanel = panel;
     await router.push({
       name: "project",
       params: { projectId: state.project.id },
-      query: { step, ...(animation ? { animation } : {}) },
+      query: { panel, ...(animation ? { animation } : {}) },
     });
-  }
-
-  function inferredStep(view: ProjectView): WorkflowStep {
-    if (view.frames.length) return "animations";
-    if (view.sourceVideoUrl) return "frames";
-    if (view.spriteUrl) return "movement";
-    return "reference";
   }
 
   async function run(
@@ -193,8 +186,8 @@ export function createStudioController(
   }
 
   context.actions = {
-    async setStep(step) {
-      await setRoute(step, state.animationDraft.activeAnimationId);
+    async setPanel(panel) {
+      await setPanelRoute(panel, state.animationDraft.activeAnimationId);
     },
     async generateReference() {
       const prompt = state.draft.spritePrompt.trim();
@@ -219,7 +212,7 @@ export function createStudioController(
         );
         return { ...result.view, spriteUrl: result.dataUrl };
       }, "Reference Sprite ready.");
-      if (state.operations.reference.phase === "success") await setRoute("movement");
+      if (state.operations.reference.phase === "success") await setPanelRoute("movement");
     },
     async uploadReference(files) {
       const file = files[0];
@@ -249,7 +242,7 @@ export function createStudioController(
         if (finishOperation(state, "reference", id, project.id, "success", "Reference Sprite uploaded.")) {
           apply(view);
           notify("Reference Sprite uploaded");
-          await setRoute("movement");
+          await setPanelRoute("movement");
         }
       } catch (error) {
         finishOperation(state, "reference", id, project.id, "error", message(error, "Upload failed"));
@@ -285,7 +278,7 @@ export function createStudioController(
       await run("video", "Generating movement video…",
         () => dependencies.server.generateMotionVideo(state.draft.motionPrompt, state.draft.motionModel),
         "Movement video ready.");
-      if (state.operations.video.phase === "success") await setRoute("frames");
+      if (state.operations.video.phase === "success") await setPanelRoute("frames");
     },
     async generateFrames() {
       if (!state.project?.sourceVideoUrl) {
@@ -297,7 +290,7 @@ export function createStudioController(
         "Movement Frames ready.");
       if (state.operations.frames.phase === "success") {
         state.animationDraft.frameSequence = state.project?.frames.map((_, index) => index) ?? [];
-        await setRoute("animations");
+        await setPanelRoute("frames");
       }
     },
     toggleFrame(index) {
@@ -326,7 +319,7 @@ export function createStudioController(
       const animation = state.project?.animations.find((candidate) => candidate.id === id);
       if (animation) editAnimation(state, animation);
       else newAnimationDraft(state);
-      await setRoute("animations", animation?.id);
+      await setPanelRoute(context.activePanel, animation?.id);
     },
     async saveAnimation(update) {
       const frames = currentFrames();
@@ -403,11 +396,11 @@ export function createStudioController(
 
   async function openProject(view: ProjectView) {
     apply(view);
-    context.activeStep = inferredStep(view);
+    context.activePanel = "reference";
     await router.push({
       name: "project",
       params: { projectId: view.id },
-      query: { step: context.activeStep },
+      query: { panel: context.activePanel },
     });
   }
 
@@ -445,9 +438,9 @@ export function createStudioController(
   );
 
   watch(
-    () => [route.query.step, route.query.animation],
+    () => [route.query.panel, route.query.animation],
     () => {
-      context.activeStep = routeStep(route);
+      context.activePanel = routePanel(route);
       const id = routeAnimation(route);
       const animation = state.project?.animations.find((candidate) => candidate.id === id);
       if (animation && state.animationDraft.activeAnimationId !== id) editAnimation(state, animation);
@@ -456,7 +449,7 @@ export function createStudioController(
         void router.replace({
           name: "project",
           params: { projectId: state.project?.id },
-          query: { step: "animations" },
+          query: { panel: context.activePanel },
         });
       }
     },
@@ -486,11 +479,7 @@ export function createStudioController(
         : await dependencies.server.createProject();
     }
     apply(view);
-    const requestedStep = Array.isArray(route.query.step) ? route.query.step[0] : route.query.step;
-    context.activeStep = typeof requestedStep === "string" &&
-      ["reference", "movement", "frames", "animations"].includes(requestedStep)
-      ? routeStep(route)
-      : inferredStep(view);
+    context.activePanel = routePanel(route);
     const animationId = routeAnimation(route);
     const animation = view.animations.find(({ id }) => id === animationId);
     if (animation) editAnimation(state, animation);
@@ -498,7 +487,7 @@ export function createStudioController(
       name: "project",
       params: { projectId: view.id },
       query: {
-        step: context.activeStep,
+        panel: context.activePanel,
         ...(animation ? { animation: animation.id } : {}),
       },
     });

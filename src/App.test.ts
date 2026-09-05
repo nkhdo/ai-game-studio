@@ -38,7 +38,7 @@ describe("App", () => {
       history: createMemoryHistory(),
       routes: [{ path: "/project/:projectId?", name: "project", component: App }],
     });
-    await router.push("/project/project-one?step=reference");
+    await router.push("/project/project-one?panel=reference");
     const wrapper = mount(App, { global: { plugins: [router] } });
     await flushPromises();
     expect(wrapper.text()).toContain("Choose Reference Sprite");

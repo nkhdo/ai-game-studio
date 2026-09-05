@@ -14,8 +14,8 @@ const busy = computed(() => operation.value.phase === "running");
 </script>
 
 <template>
-  <section class="card accordion-item" :class="{ 'is-open': studio.activeStep === 'reference' }">
-    <button class="accordion-trigger" type="button" :aria-expanded="studio.activeStep === 'reference'" @click="studio.actions.setStep('reference')">
+  <section class="card accordion-item" :class="{ 'is-open': studio.activePanel === 'reference' }">
+    <button class="accordion-trigger" type="button" :aria-expanded="studio.activePanel === 'reference'" @click="studio.actions.setPanel('reference')">
       <span>1. Choose Reference Sprite</span><span class="accordion-trigger__icon" aria-hidden="true" />
     </button>
     <div class="panel-body">

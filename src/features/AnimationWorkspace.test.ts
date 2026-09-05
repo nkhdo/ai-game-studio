@@ -13,7 +13,7 @@ function context(): StudioContext {
     imageModels: [],
     videoModels: [],
     projects: [],
-    activeStep: "animations",
+    activePanel: "reference",
     hasApiKey: true,
     frameUrls: [],
     actions: {
