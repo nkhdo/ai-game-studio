@@ -40,10 +40,10 @@ describe("App", () => {
     const wrapper = mount(App, { global: { plugins: [router] } });
     await flushPromises();
     expect(wrapper.text()).toContain("Choose Reference Sprite");
-    expect(wrapper.text()).toContain("Generate Video");
+    expect(wrapper.text()).toContain("Generate Movement");
     expect(wrapper.text()).toContain("Generate Frames");
     expect(wrapper.text()).toContain("Animations");
-    expect(wrapper.text()).not.toMatch(/\b[1-4]\. (Choose Reference Sprite|Generate Video|Generate Frames|Animations)/);
+    expect(wrapper.text()).not.toMatch(/\b[1-4]\. (Choose Reference Sprite|Generate Movement|Generate Frames|Animations)/);
     expect(wrapper.get<HTMLTextAreaElement>("#sprite-prompt").element.value).toBe("knight");
   });
 });
