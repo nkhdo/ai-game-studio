@@ -327,7 +327,6 @@ export async function commitReferenceUpload(uploadId: string) {
     motionPrompt: "",
     motionModel: DEFAULT_VIDEO_MODEL,
     frames: [],
-    selectedFrameIndices: [],
     spritesheet: null,
     previewGif: null,
     animations: [],

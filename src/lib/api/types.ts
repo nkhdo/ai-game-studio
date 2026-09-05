@@ -31,10 +31,8 @@ export interface ProjectView {
   colorCount: number | null;
   subjectFillMeasured: number | null;
   frames: string[];
-  selectedFrameIndices: number[];
+  framesUpdatedAt: string;
   sourceVideoUrl: string | null;
-  spritesheetUrl: string | null;
-  previewGifUrl: string | null;
   animations: AnimationView[];
   updatedAt: string;
 }

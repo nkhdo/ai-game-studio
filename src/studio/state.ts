@@ -118,7 +118,7 @@ export function reconcileProject(
     newAnimationDraft(state);
   }
   if (!state.animationDraft.activeAnimationId && !options.preserveDraft) {
-    state.animationDraft.frameSequence = [...project.selectedFrameIndices];
+    state.animationDraft.frameSequence = [];
     state.animationDraft.frozenFrameUrls = null;
   }
 }

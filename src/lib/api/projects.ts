@@ -32,17 +32,3 @@ export function saveProjectDraft(
     context,
   );
 }
-
-export function saveSelection(
-  context: ProjectRequestContext,
-  selectedIndices: number[],
-): Promise<ProjectView> {
-  return postJson("/api/projects/selection", { selectedIndices }, context);
-}
-
-export function saveSpritesheet(
-  context: ProjectRequestContext,
-  dataUrl: string,
-): Promise<ProjectView> {
-  return postJson("/api/projects/spritesheet", { dataUrl }, context);
-}

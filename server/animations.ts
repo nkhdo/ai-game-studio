@@ -17,7 +17,6 @@ export interface AnimationInput {
   frameIndices: number[];
   fps: number;
   dataUrl: string;
-  sourceAnimationId?: string;
 }
 
 export function validateAnimationInput(input: AnimationInput, frameCount: number): AnimationInput {
@@ -56,21 +55,14 @@ async function materializeAnimation(
   id: string,
   input: AnimationInput,
   createdAt: string,
-  sourceFrames?: string[],
 ): Promise<AnimationManifest> {
   const manifest = await readManifest(activeProjectId());
-  const frameCount = sourceFrames
-    ? Math.max(0, ...input.frameIndices.map((index) => index + 1))
-    : manifest.frames.length;
-  const validated = validateAnimationInput(input, frameCount);
-  if (sourceFrames && sourceFrames.length !== validated.frameIndices.length) {
-    throw new Error("saved Animation frame sequence is inconsistent");
-  }
+  const validated = validateAnimationInput(input, manifest.frames.length);
   const relativeDir = `${PROJECT_FILES.animationsDir}/${id}`;
   const absoluteDir = path.join(activeProjectDir(), relativeDir);
   ensureInsideRoot(absoluteDir);
-  const sourcePaths = validated.frameIndices.map((frameIndex, position) =>
-    path.join(activeProjectDir(), sourceFrames?.[position] ?? manifest.frames[frameIndex])
+  const sourcePaths = validated.frameIndices.map((frameIndex) =>
+    path.join(activeProjectDir(), manifest.frames[frameIndex])
   );
   for (const [position, source] of sourcePaths.entries()) {
     ensureInsideRoot(source);
@@ -124,17 +116,10 @@ async function materializeAnimation(
 
 export async function createAnimation(input: AnimationInput): Promise<ProjectView> {
   const manifest = await readManifest(activeProjectId());
-  const sourceAnimation = input.sourceAnimationId
-    ? manifest.animations.find((animation) => animation.id === input.sourceAnimationId)
-    : undefined;
-  if (input.sourceAnimationId && !sourceAnimation) throw new Error("source Animation not found");
-  const frameCount = sourceAnimation
-    ? Math.max(0, ...input.frameIndices.map((index) => index + 1))
-    : manifest.frames.length;
-  const validated = validateAnimationInput(input, frameCount);
+  const validated = validateAnimationInput(input, manifest.frames.length);
   ensureUniqueAnimationName(manifest.animations, validated.name);
   const now = new Date().toISOString();
-  const animation = await materializeAnimation(randomUUID(), validated, now, sourceAnimation?.frames);
+  const animation = await materializeAnimation(randomUUID(), validated, now);
   return toView(await updateLatest({ animations: [...manifest.animations, animation] }));
 }
 
@@ -142,36 +127,6 @@ export async function updateAnimation(id: string, input: AnimationInput): Promis
   const manifest = await readManifest(activeProjectId());
   const existing = manifest.animations.find((animation) => animation.id === id);
   if (!existing) throw new Error("animation not found");
-  if (input.sourceAnimationId === id) {
-    const validated = validateAnimationInput(
-      input,
-      Math.max(manifest.frames.length, ...existing.frameIndices.map((index) => index + 1)),
-    );
-    ensureUniqueAnimationName(manifest.animations, validated.name, id);
-    const spritesheetPath = path.join(activeProjectDir(), existing.spritesheet);
-    await saveDataUrlPng(validated.dataUrl, spritesheetPath);
-    let previewGif: string | null = existing.previewGif ?? `${PROJECT_FILES.animationsDir}/${id}/preview.gif`;
-    try {
-      await buildGifFromFramePaths(
-        existing.frames.map((frame) => path.join(activeProjectDir(), frame)),
-        path.join(activeProjectDir(), previewGif),
-        manifest.targetFrameSize?.w ?? 128,
-        validated.fps,
-      );
-    } catch {
-      previewGif = null;
-    }
-    const updated = {
-      ...existing,
-      name: validated.name,
-      fps: validated.fps,
-      previewGif,
-      updatedAt: new Date().toISOString(),
-    };
-    return toView(await updateLatest({
-      animations: manifest.animations.map((candidate) => candidate.id === id ? updated : candidate),
-    }));
-  }
   const validated = validateAnimationInput(input, manifest.frames.length);
   ensureUniqueAnimationName(manifest.animations, validated.name, id);
   const animation = await materializeAnimation(id, validated, existing.createdAt);
