@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useStudio } from "../studio/context";
+import { currentTheme, toggleTheme } from "../theme";
 import UiIcon from "../ui/UiIcon.vue";
 
 const studio = useStudio();
@@ -122,6 +123,18 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
         {{ studio.state.save.phase === "saving"
           ? "Saving…"
           : studio.state.save.phase === "saved" ? "Saved" : "Not saved · Retry" }}
+      </button>
+    </div>
+    <div class="app-header__actions">
+      <button
+        class="theme-toggle"
+        type="button"
+        aria-label="Dark mode"
+        :aria-pressed="currentTheme === 'dark'"
+        :title="currentTheme === 'dark' ? 'Use light mode' : 'Use dark mode'"
+        @click="toggleTheme"
+      >
+        <UiIcon :name="currentTheme === 'dark' ? 'sun' : 'moon'" />
       </button>
     </div>
   </header>

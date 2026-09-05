@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { studioKey, type StudioContext } from "../studio/context";
 import { createStudioState } from "../studio/state";
 import ProjectHeader from "./ProjectHeader.vue";
+import { setTheme, THEME_STORAGE_KEY } from "../theme";
 
 function context(): StudioContext {
   const state = createStudioState();
@@ -44,9 +45,24 @@ describe("ProjectHeader", () => {
     expect(
       wrapper.get(".app-header__brand").find("[data-project-select]").exists(),
     ).toBe(true);
-    expect(
-      wrapper.find(".app-header__actions").exists(),
-    ).toBe(false);
+    expect(wrapper.get(".app-header__actions").find(".theme-toggle").exists()).toBe(true);
+  });
+
+  it("toggles and persists dark mode from the navbar", async () => {
+    setTheme("light", false);
+    const wrapper = mount(ProjectHeader, {
+      global: { provide: { [studioKey as symbol]: context() } },
+    });
+    const toggle = wrapper.get(".theme-toggle");
+
+    expect(toggle.attributes("aria-label")).toBe("Dark mode");
+    expect(toggle.attributes("aria-pressed")).toBe("false");
+    expect(toggle.get("svg").attributes("data-icon")).toBe("moon");
+    await toggle.trigger("click");
+    expect(toggle.attributes("aria-pressed")).toBe("true");
+    expect(toggle.get("svg").attributes("data-icon")).toBe("sun");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
   });
 
   it("places save feedback beside the Project selector", () => {
