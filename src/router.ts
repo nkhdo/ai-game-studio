@@ -5,12 +5,12 @@ import {
   type Router,
 } from "vue-router";
 
-export const WORKFLOW_STEPS = ["reference", "movement", "frames", "animations"] as const;
-export type WorkflowStep = (typeof WORKFLOW_STEPS)[number];
+export const LEFT_PANELS = ["reference", "movement", "frames"] as const;
+export type LeftPanel = (typeof LEFT_PANELS)[number];
 
-export function routeStep(route: RouteLocationNormalized): WorkflowStep {
-  const value = Array.isArray(route.query.step) ? route.query.step[0] : route.query.step;
-  return WORKFLOW_STEPS.includes(value as WorkflowStep) ? value as WorkflowStep : "reference";
+export function routePanel(route: RouteLocationNormalized): LeftPanel {
+  const value = Array.isArray(route.query.panel) ? route.query.panel[0] : route.query.panel;
+  return LEFT_PANELS.includes(value as LeftPanel) ? value as LeftPanel : "reference";
 }
 
 export function routeAnimation(route: RouteLocationNormalized): string | null {

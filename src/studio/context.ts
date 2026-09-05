@@ -3,7 +3,7 @@ import type { ImageModelOption, ProjectSummary, VideoModelOption } from "../lib/
 import type { StudioState } from "./state";
 
 export interface StudioActions {
-  setStep(step: "reference" | "movement" | "frames" | "animations"): Promise<void>;
+  setPanel(panel: "reference" | "movement" | "frames"): Promise<void>;
   generateReference(): Promise<void>;
   uploadReference(files: File[]): Promise<void>;
   addStyleGuides(files: File[]): Promise<void>;
@@ -29,7 +29,7 @@ export interface StudioContext {
   imageModels: ImageModelOption[];
   videoModels: VideoModelOption[];
   projects: ProjectSummary[];
-  activeStep: "reference" | "movement" | "frames" | "animations";
+  activePanel: "reference" | "movement" | "frames";
   hasApiKey: boolean;
   actions: StudioActions;
 }
