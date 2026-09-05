@@ -29,6 +29,6 @@ provide(studioKey, studio);
         <AnimationWorkspace />
       </div>
     </main>
-    <div class="toast" :class="{ 'is-visible': studio.toast }" role="status" aria-live="polite">{{ studio.toast }}</div>
+    <div class="toast" :class="[`toast--${studio.toast.kind}`, { 'is-visible': studio.toast.message }]" role="status" aria-live="polite">{{ studio.toast.message }}</div>
   </div>
 </template>

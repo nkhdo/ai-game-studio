@@ -33,21 +33,29 @@
 /* ---------- Toast ---------- */
 .toast {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: var(--overlay);
+  top: 20px;
+  left: 50%;
+  transform: translate(-50%, -8px);
   color: var(--on-overlay);
   padding: 10px 14px;
   border-radius: var(--radius-sm);
   font-size: 12px;
   box-shadow: var(--shadow-md);
   opacity: 0;
-  transform: translateY(8px);
   transition: opacity 180ms ease, transform 180ms ease;
   pointer-events: none;
 }
 
+.toast--success {
+  /* Fixed light tints: the toast background is theme-independent dark. */
+  color: #4ade80;
+}
+
+.toast--error {
+  color: #f87171;
+}
+
 .toast.is-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translate(-50%, 0);
 }

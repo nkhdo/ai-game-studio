@@ -23,7 +23,7 @@ export function createAnimationActions(env: WorkflowEnvironment) {
       const frames = currentFrames();
       const name = state.draft.animationName.trim();
       if (!name || frames.length === 0 || !state.project?.targetFrameSize) {
-        env.notify("Choose frames and enter an Animation name.");
+        env.notify("Choose frames and enter an Animation name.", "error");
         return;
       }
       const sheet = await composeSpritesheet({

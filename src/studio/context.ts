@@ -36,6 +36,8 @@ export interface StudioContext {
   actions: StudioActions;
 }
 
+export type ToastKind = "normal" | "success" | "error";
+
 export const studioKey: InjectionKey<StudioContext> = Symbol("studio");
 
 export function useStudio(): StudioContext {

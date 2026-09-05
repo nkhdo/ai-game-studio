@@ -2,7 +2,7 @@ import { computed, reactive, watch } from "vue";
 import type { RouteLocationNormalizedLoaded, Router } from "vue-router";
 import type { ProjectMutation, ProjectView } from "../lib/api";
 import type { LeftPanel } from "../router";
-import type { StudioContext } from "./context";
+import type { StudioContext, ToastKind } from "./context";
 import type { StudioDependencies } from "./dependencies";
 import { toServerDraft } from "./draft-persistence";
 import { DraftSynchronizer } from "./draft-sync";
@@ -25,7 +25,7 @@ import type { WorkflowEnvironment } from "./workflows/types";
 export interface StudioController extends StudioContext {
   ready: boolean;
   bootError: string;
-  toast: string;
+  toast: { message: string; kind: ToastKind };
   frameUrls: string[];
 }
 
@@ -48,7 +48,7 @@ export function createStudioController(
     hasApiKey: false,
     ready: false,
     bootError: "",
-    toast: "",
+    toast: { message: "", kind: "normal" as ToastKind },
     frameUrls: computed(() => projections.frameUrls.value),
     actions: {} as StudioContext["actions"],
   }) as unknown as StudioController;
@@ -75,10 +75,10 @@ export function createStudioController(
     },
   );
 
-  function notify(value: string) {
-    context.toast = value;
+  function notify(message: string, kind: ToastKind = "normal") {
+    context.toast = { message, kind };
     if (toastTimer !== null) dependencies.clock.clearTimeout(toastTimer);
-    toastTimer = dependencies.clock.setTimeout(() => { context.toast = ""; }, 2200);
+    toastTimer = dependencies.clock.setTimeout(() => { context.toast = { message: "", kind: "normal" }; }, 2200);
   }
 
   function apply(view: ProjectView, preserveDraft = false) {
@@ -126,11 +126,11 @@ export function createStudioController(
       const mutation = await task(project);
       if (!finishOperation(state, name, id, project.id, "success", success)) return;
       applyMutation(project, mutation, options.preserveDraft);
-      notify(success);
+      notify(success, "success");
   } catch (error) {
     const message = errorMessage(error, "Operation failed");
     finishOperation(state, name, id, initialProject.id, "error", message);
-    if (options.toastError) notify(message);
+    if (options.toastError) notify(message, "error");
   }
   }
 

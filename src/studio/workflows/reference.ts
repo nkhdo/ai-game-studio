@@ -66,7 +66,7 @@ export function createReferenceActions(env: WorkflowEnvironment) {
         const mutation = await dependencies.server.commitSpriteUpload(context, prepared.uploadId);
         if (finishOperation(state, "reference", id, project.id, "success", "Reference Sprite uploaded.")) {
           env.applyMutation(project, mutation);
-          env.notify("Reference Sprite uploaded");
+          env.notify("Reference Sprite uploaded", "success");
         }
       } catch (error) {
         finishOperation(state, "reference", id, project.id, "error", errorMessage(error, "Upload failed"));
