@@ -33,21 +33,25 @@ export class DraftSynchronizer {
     this.snapshot = {
       projectId,
       revision,
-      saved: structuredClone(draft),
-      current: structuredClone(draft),
+      saved: { ...draft },
+      current: { ...draft },
     };
     this.onStatus("idle");
   }
 
   update(draft: ProjectDraft): void {
     if (!this.snapshot) return;
-    this.snapshot.current = structuredClone(draft);
+    this.snapshot.current = { ...draft };
     if (this.timer !== null) this.clock.clearTimeout(this.timer);
     this.onStatus("saving");
     this.timer = this.clock.setTimeout(() => {
       this.timer = null;
       void this.flush();
     }, this.delay);
+  }
+
+  advanceRevision(projectId: string, revision: number): void {
+    if (this.snapshot?.projectId === projectId) this.snapshot.revision = revision;
   }
 
   async flush(): Promise<void> {
@@ -64,8 +68,8 @@ export class DraftSynchronizer {
       return;
     }
     const projectId = snapshot.projectId;
-    const current = structuredClone(snapshot.current);
-    const base = structuredClone(snapshot.saved);
+    const current = { ...snapshot.current };
+    const base = { ...snapshot.saved };
     this.onStatus("saving");
     this.inFlight = this.save(projectId, snapshot.revision, patch, base)
       .then(({ revision }) => {
