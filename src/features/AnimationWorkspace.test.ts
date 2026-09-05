@@ -82,14 +82,16 @@ describe("AnimationWorkspace", () => {
     expect(studio.actions.saveAnimation).toHaveBeenLastCalledWith(false);
   });
 
-  it("places compact Animation settings in the preview overlay", () => {
+  it("places compact Animation settings and save actions in the preview header", () => {
     const wrapper = mount(AnimationWorkspace, {
       global: { provide: { [studioKey as symbol]: context() } },
     });
 
-    const settings = wrapper.get(".quick-preview__overlay--settings");
-    expect(settings.get('input[placeholder="e.g., run"]').element.tagName).toBe("INPUT");
-    expect(settings.get('input[type="number"]').attributes("max")).toBe("60");
+    const actions = wrapper.get(".quick-preview__header-actions");
+    expect(actions.get('input[placeholder="e.g., run"]').element.tagName).toBe("INPUT");
+    expect(actions.get('input[type="number"]').attributes("max")).toBe("60");
+    expect(actions.findAll(".animation-save-split .btn").map((button) => button.text())).toEqual(["Save", "Save as"]);
+    expect(wrapper.find(".quick-preview__overlay--settings").exists()).toBe(false);
     expect(wrapper.find(".animation-editor__header").exists()).toBe(false);
   });
 

@@ -109,6 +109,13 @@
   gap: 12px;
 }
 
+.quick-preview__header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .quick-preview__title {
   display: flex;
   align-items: baseline;
@@ -131,26 +138,15 @@
   max-width: calc(100% - 16px);
 }
 
-.quick-preview__overlay--left {
-  left: 8px;
-}
-
 .quick-preview__overlay--right {
   right: 8px;
-}
-
-.quick-preview__overlay--settings {
-  top: 8px;
-  bottom: auto;
-  left: 8px;
-  gap: 8px;
 }
 
 .quick-preview__field {
   display: flex;
   align-items: center;
   gap: 5px;
-  color: white;
+  color: var(--text);
   font-size: 11px;
   font-weight: 500;
 }

@@ -103,10 +103,9 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
           </div>
         </div>
         <div class="animation-editor">
-          <div class="quick-preview__header"><div class="quick-preview__title"><div class="gif-section__label">Quick Preview</div><span class="quick-preview__count">{{ frames.length }} {{ frames.length === 1 ? "frame" : "frames" }}</span></div></div>
-          <div class="gif-preview quick-preview">
-            <div class="quick-preview__stage"><img v-if="frames.length" :src="frames[position] ?? frames[0]" alt="Quick Animation preview" :style="{ transform: `scale(${zoom})` }" /><span v-else class="gif-preview__placeholder">Select frames to preview immediately</span></div>
-            <div class="quick-preview__overlay quick-preview__overlay--settings">
+          <div class="quick-preview__header">
+            <div class="quick-preview__title"><div class="gif-section__label">Quick Preview</div><span class="quick-preview__count">{{ frames.length }} {{ frames.length === 1 ? "frame" : "frames" }}</span></div>
+            <div class="quick-preview__header-actions">
               <label class="quick-preview__field quick-preview__field--name">
                 <span>Name</span>
                 <input v-model="studio.state.draft.animationName" class="input" maxlength="40" placeholder="e.g., run" />
@@ -115,11 +114,14 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer); });
                 <span>FPS</span>
                 <input v-model.number="studio.state.draft.animationFps" class="input" type="number" min="1" max="60" />
               </label>
+              <div class="animation-save-split">
+                <BaseButton variant="primary" :busy="operation.phase === 'running'" :disabled="!frames.length" @click="save">Save</BaseButton>
+                <BaseButton :disabled="!frames.length || operation.phase === 'running'" @click="studio.actions.saveAnimation(false)">Save as</BaseButton>
+              </div>
             </div>
-            <div class="quick-preview__overlay quick-preview__overlay--left animation-save-split">
-              <BaseButton variant="primary" :busy="operation.phase === 'running'" :disabled="!frames.length" @click="save">Save</BaseButton>
-              <BaseButton :disabled="!frames.length || operation.phase === 'running'" @click="studio.actions.saveAnimation(false)">Save as</BaseButton>
-            </div>
+          </div>
+          <div class="gif-preview quick-preview">
+            <div class="quick-preview__stage"><img v-if="frames.length" :src="frames[position] ?? frames[0]" alt="Quick Animation preview" :style="{ transform: `scale(${zoom})` }" /><span v-else class="gif-preview__placeholder">Select frames to preview immediately</span></div>
             <div class="quick-preview__overlay quick-preview__overlay--right quick-preview__controls">
               <div class="quick-preview__control-group">
                 <button class="quick-preview__action" type="button" :aria-label="playing ? 'Pause preview' : 'Play preview'" @click="playing = !playing"><UiIcon :name="playing ? 'pause' : 'play'" /></button>
