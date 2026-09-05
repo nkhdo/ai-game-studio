@@ -98,38 +98,16 @@ export interface ProjectSummary {
   updatedAt: string;
 }
 
-let activeProjectId: string | null = null;
-let activeProjectRevision = 0;
-
-export function setActiveProject(id: string, revision = 0): void {
-  activeProjectId = id;
-  activeProjectRevision = revision;
+export interface ProjectRequestContext {
+  id: string;
+  revision: number;
 }
 
-function projectHeaders(context?: { id: string; revision: number }): Record<string, string> {
-  const id = context?.id ?? activeProjectId;
-  const revision = context?.revision ?? activeProjectRevision;
-  return id ? {
-    "X-Project-ID": id,
-    "X-Project-Revision": String(revision),
-  } : {};
-}
-
-function captureRevision(value: unknown): void {
-  if (!value || typeof value !== "object") return;
-  const candidate = "view" in value ? (value as { view?: unknown }).view : value;
-  if (candidate && typeof candidate === "object" && "revision" in candidate) {
-    const candidateId = "id" in candidate
-      ? (candidate as { id?: unknown }).id
-      : undefined;
-    if (
-      typeof candidateId === "string" &&
-      activeProjectId &&
-      candidateId !== activeProjectId
-    ) return;
-    const revision = Number((candidate as { revision?: unknown }).revision);
-    if (Number.isInteger(revision)) activeProjectRevision = revision;
-  }
+function projectHeaders(context: ProjectRequestContext): Record<string, string> {
+  return {
+    "X-Project-ID": context.id,
+    "X-Project-Revision": String(context.revision),
+  };
 }
 
 export interface GenerateSpriteResponse {
@@ -149,11 +127,14 @@ export interface PreparedSpriteUpload {
 async function postJson<T>(
   path: string,
   body: unknown,
-  context?: { id: string; revision: number },
+  context?: ProjectRequestContext,
 ): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...projectHeaders(context) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(context ? projectHeaders(context) : {}),
+    },
     body: JSON.stringify(body),
   });
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -162,23 +143,22 @@ async function postJson<T>(
       typeof json.error === "string" ? json.error : `Request failed (${res.status})`;
     throw new Error(message);
   }
-  captureRevision(json);
   return json as T;
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(path, { headers: projectHeaders() });
+  const res = await fetch(path);
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
     const message =
       typeof json.error === "string" ? json.error : `Request failed (${res.status})`;
     throw new Error(message);
   }
-  captureRevision(json);
   return json as T;
 }
 
 export function generateSprite(
+  context: ProjectRequestContext,
   prompt: string,
   model?: string,
   geometry?: AcquisitionGeometry,
@@ -191,28 +171,35 @@ export function generateSprite(
     subjectFillPct: geometry?.subjectFillPct,
     colorCount: geometry?.colorCount ?? null,
     spritePaletteLock: spritePaletteLock === true,
-  });
+  }, context);
 }
 
-export async function uploadStyleGuide(file: File): Promise<ProjectView> {
+export async function uploadStyleGuide(
+  context: ProjectRequestContext,
+  file: File,
+): Promise<ProjectView> {
   const body = new FormData();
   body.append("image", file);
-  const res = await fetch("/api/sprites/style-guides", { method: "POST", headers: projectHeaders(), body });
+  const res = await fetch("/api/sprites/style-guides", {
+    method: "POST",
+    headers: projectHeaders(context),
+    body,
+  });
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
     throw new Error(
       typeof json.error === "string" ? json.error : `Style guide upload failed (${res.status})`,
     );
   }
-  captureRevision(json);
   return json as unknown as ProjectView;
 }
 
-export function removeStyleGuide(id: string): Promise<ProjectView> {
-  return postJson("/api/sprites/style-guides/remove", { id });
+export function removeStyleGuide(context: ProjectRequestContext, id: string): Promise<ProjectView> {
+  return postJson("/api/sprites/style-guides/remove", { id }, context);
 }
 
 export async function prepareSpriteUpload(
+  context: ProjectRequestContext,
   file: File,
   geometry: AcquisitionGeometry,
 ): Promise<PreparedSpriteUpload> {
@@ -221,7 +208,11 @@ export async function prepareSpriteUpload(
   body.append("frameSize", String(geometry.frameSize));
   body.append("subjectFillPct", String(geometry.subjectFillPct));
   if (geometry.colorCount !== null) body.append("colorCount", String(geometry.colorCount));
-  const res = await fetch("/api/sprites/upload/prepare", { method: "POST", headers: projectHeaders(), body });
+  const res = await fetch("/api/sprites/upload/prepare", {
+    method: "POST",
+    headers: projectHeaders(context),
+    body,
+  });
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
     throw new Error(typeof json.error === "string" ? json.error : `Upload failed (${res.status})`);
@@ -229,26 +220,31 @@ export async function prepareSpriteUpload(
   return json as unknown as PreparedSpriteUpload;
 }
 
-export function commitSpriteUpload(uploadId: string): Promise<ProjectView> {
-  return postJson("/api/sprites/upload/commit", { uploadId });
+export function commitSpriteUpload(
+  context: ProjectRequestContext,
+  uploadId: string,
+): Promise<ProjectView> {
+  return postJson("/api/sprites/upload/commit", { uploadId }, context);
 }
 
-export function discardSpriteUpload(): Promise<{ ok: boolean }> {
-  return postJson("/api/sprites/upload/discard", {});
+export function discardSpriteUpload(context: ProjectRequestContext): Promise<{ ok: boolean }> {
+  return postJson("/api/sprites/upload/discard", {}, context);
 }
 
 export function generateMotionVideo(
+  context: ProjectRequestContext,
   text: string,
   model?: string,
 ): Promise<ProjectView> {
-  return postJson("/api/sprites/video", { text, model });
+  return postJson("/api/sprites/video", { text, model }, context);
 }
 
 export function generateMovementFrames(
+  context: ProjectRequestContext,
   paletteLock: boolean,
   hardAlphaEdges: boolean,
 ): Promise<ProjectView> {
-  return postJson("/api/sprites/frames", { paletteLock, hardAlphaEdges });
+  return postJson("/api/sprites/frames", { paletteLock, hardAlphaEdges }, context);
 }
 
 export function getVideoModels(): Promise<VideoModelsResponse> {
@@ -280,44 +276,29 @@ export function deleteProject(id: string): Promise<{ ok: boolean }> {
 }
 
 export function saveProjectDraft(
-  revision: number,
-  patch: Record<string, unknown>,
-  base: Record<string, unknown>,
-): Promise<ProjectView> {
-  return postJson("/api/projects/draft", { revision, patch, base });
-}
-
-export function saveProjectDraftFor(
-  projectId: string,
-  revision: number,
+  context: ProjectRequestContext,
   patch: Record<string, unknown>,
   base: Record<string, unknown>,
 ): Promise<ProjectView> {
   return postJson(
     "/api/projects/draft",
-    { revision, patch, base },
-    { id: projectId, revision },
+    { revision: context.revision, patch, base },
+    context,
   );
 }
 
-export function saveSelection(selectedIndices: number[]): Promise<ProjectView> {
-  return postJson("/api/projects/selection", { selectedIndices });
-}
-
-export function saveSelectionFor(
-  projectId: string,
-  revision: number,
+export function saveSelection(
+  context: ProjectRequestContext,
   selectedIndices: number[],
 ): Promise<ProjectView> {
-  return postJson(
-    "/api/projects/selection",
-    { selectedIndices },
-    { id: projectId, revision },
-  );
+  return postJson("/api/projects/selection", { selectedIndices }, context);
 }
 
-export function saveSpritesheet(dataUrl: string): Promise<ProjectView> {
-  return postJson("/api/projects/spritesheet", { dataUrl });
+export function saveSpritesheet(
+  context: ProjectRequestContext,
+  dataUrl: string,
+): Promise<ProjectView> {
+  return postJson("/api/projects/spritesheet", { dataUrl }, context);
 }
 
 export interface AnimationSaveInput {
@@ -328,16 +309,23 @@ export interface AnimationSaveInput {
   sourceAnimationId?: string;
 }
 
-export function createAnimation(input: AnimationSaveInput): Promise<ProjectView> {
-  return postJson("/api/projects/animations", input);
+export function createAnimation(
+  context: ProjectRequestContext,
+  input: AnimationSaveInput,
+): Promise<ProjectView> {
+  return postJson("/api/projects/animations", input, context);
 }
 
-export function updateAnimation(id: string, input: AnimationSaveInput): Promise<ProjectView> {
-  return postJson("/api/projects/animations/update", { id, ...input });
+export function updateAnimation(
+  context: ProjectRequestContext,
+  id: string,
+  input: AnimationSaveInput,
+): Promise<ProjectView> {
+  return postJson("/api/projects/animations/update", { id, ...input }, context);
 }
 
-export function deleteAnimation(id: string): Promise<ProjectView> {
-  return postJson("/api/projects/animations/delete", { id });
+export function deleteAnimation(context: ProjectRequestContext, id: string): Promise<ProjectView> {
+  return postJson("/api/projects/animations/delete", { id }, context);
 }
 
 export async function checkHealth(): Promise<{ ok: boolean; hasApiKey: boolean }> {
